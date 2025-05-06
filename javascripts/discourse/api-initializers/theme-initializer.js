@@ -1,5 +1,5 @@
 import { apiInitializer } from "discourse/lib/api";
-import { Funscript } from "./funlib-0.3.0.js";
+import { Funscript } from "../funlib.js";
 
 export default apiInitializer((api) => {
   console.log("[heatmap on]");
