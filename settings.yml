@@ -1,0 +1,9 @@
+disable_heatmaps:
+  type: bool
+  default: false
+  description: "Disable funscript heatmap generation entirely"
+
+solid_background:
+  type: bool
+  default: false
+  description: "Use solid background color instead of gradient in heatmaps" 
