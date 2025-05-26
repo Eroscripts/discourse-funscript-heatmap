@@ -1,6 +1,7 @@
 // @ts-check
 import { apiInitializer } from "discourse/lib/api";
 import { Funscript } from "../lib/funlib"; 
+import { makeSettingsEdits, userSettings } from "../lib/settings";
 
 export default apiInitializer((api) => {
   // Inject user settings UI into preferences page
@@ -8,56 +9,22 @@ export default apiInitializer((api) => {
     if (url.startsWith("/u/") && url.includes("/preferences")) {
       setTimeout(() => {
         if (document.getElementById("heatmap-user-settings")) return;
-        const container = document.createElement("div");
-        container.id = "heatmap-user-settings";
-        container.style.margin = "2em 0";
-        container.innerHTML = `
-          <h3>Heatmap User Settings</h3>
-          <label>
-            <input type="checkbox" id="user-disable-heatmaps">
-            Disable funscript heatmap generation
-          </label><br>
-          <label>
-            <input type="checkbox" id="user-solid-background">
-            Use solid background color in heatmaps
-          </label>
-        `;
         const preferences = document.querySelector(".user-preferences");
         if (preferences) {
-          preferences.appendChild(container);
-          document.getElementById("user-disable-heatmaps").checked =
-            localStorage.getItem("user-disable-heatmaps") === "true";
-          document.getElementById("user-solid-background").checked =
-            localStorage.getItem("user-solid-background") === "true";
-          document.getElementById("user-disable-heatmaps").addEventListener("change", (e) => {
-            localStorage.setItem("user-disable-heatmaps", e.target.checked);
-          });
-          document.getElementById("user-solid-background").addEventListener("change", (e) => {
-            localStorage.setItem("user-solid-background", e.target.checked);
-          });
+          preferences.appendChild(makeSettingsEdits()); 
         }
       }, 500);
     }
   });
-
-  // Helper to get user setting or fallback to theme setting
-  function getUserOrThemeSetting(key, themeDefault) {
-    const local = localStorage.getItem(key);
-    if (local === "true") return true;
-    if (local === "false") return false;
-    return themeDefault;
-  }
-
-  console.log("[heatmap on]");
-
+  
   api.decorateCookedElement(
     async (cookedElement) => {
       // Use user setting if present, else theme setting
-      const disableHeatmaps = getUserOrThemeSetting("user-disable-heatmaps", settings.disable_heatmaps);
+      const disableHeatmaps = userSettings.disable_heatmaps;
       if (disableHeatmaps) {
         return;
       }
-
+      
       let aa = Array.from(
         cookedElement.querySelectorAll('a[href$=".funscript"]'),
       );
@@ -91,27 +58,36 @@ export default apiInitializer((api) => {
 });
 
 const CACHE_INFO_VERSION = 1;
-const CACHE_CLEAN_DAYS = 1;
+const CACHE_INACTIVITY_HOURS = 8;
 
 async function cleanStorage() {
   const cache = await window.caches.open("funscript-cache");
   let cacheInfo = JSON.parse(
     localStorage.getItem("funscript-cache-info") ||
-      `{ version: ${CACHE_INFO_VERSION}, scripts: {} }`,
+      `{ version: ${CACHE_INFO_VERSION}, scripts: {}, lastActivity: ${Date.now()} }`,
   );
   if (cacheInfo.version !== CACHE_INFO_VERSION) {
-    cacheInfo = { version: CACHE_INFO_VERSION, scripts: {} };
+    cacheInfo = { version: CACHE_INFO_VERSION, scripts: {}, lastActivity: Date.now() };
     window.caches.delete("funscript-cache");
   }
-  for (const [url, script] of Object.entries(cacheInfo.scripts)) {
-    const age = (Date.now() - script.scriptCachedAt) / 24 / 3600e3;
-    if (age > CACHE_CLEAN_DAYS) {
-      console.log("removing", script, "due to age", age);
-      cache.delete(url);
-      cache.delete(url + ".svg");
-      delete cacheInfo.scripts[url];
-    }
+  
+  // Initialize lastActivity if it doesn't exist
+  if (!cacheInfo.lastActivity) {
+    cacheInfo.lastActivity = Date.now();
   }
+  
+  // Check if cache has been inactive for more than 8 hours
+  const inactivityHours = (Date.now() - cacheInfo.lastActivity) / 3600e3;
+  if (inactivityHours > CACHE_INACTIVITY_HOURS) {
+    console.log(`Cache inactive for ${inactivityHours.toFixed(2)} hours, clearing completely`);
+    // Clear entire cache
+    await window.caches.delete("funscript-cache");
+    cacheInfo = { version: CACHE_INFO_VERSION, scripts: {}, lastActivity: Date.now() };
+  } else {
+    // Update last activity time since we're accessing the cache
+    cacheInfo.lastActivity = Date.now();
+  }
+  
   localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
 }
 cleanStorage();
@@ -133,23 +109,25 @@ async function fetchFunscript(url) {
     throw new Error("No file path found");
   }
   filePath = decodeURIComponent(filePath);
+  // Update last activity time whenever cache is accessed
+  const cacheInfo = JSON.parse(
+    localStorage.getItem("funscript-cache-info") || "{}",
+  );
+  cacheInfo.version ??= CACHE_INFO_VERSION;
+  cacheInfo.lastActivity = Date.now();
+  let scripts = (cacheInfo.scripts ??= {});
+  
   if (!cachedResponse) {
-    const cacheInfo = JSON.parse(
-      localStorage.getItem("funscript-cache-info") || "{}",
-    );
-    cacheInfo.version ??= CACHE_INFO_VERSION;
-    let scripts = (cacheInfo.scripts ??= {});
     scripts[url] = {
       ...scripts[url],
       url,
       filePath,
       scriptCachedAt: Date.now(),
     };
-    cacheInfo.version = CACHE_INFO_VERSION;
-    localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
-
     await cache.put(url, response.clone());
   }
+  
+  localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
   const json = await response.json();
   return new Funscript(json, { file: decodeURIComponent(filePath) });
 }
@@ -158,9 +136,16 @@ async function generateSvgBlobUrl(url) {
   console.time("readCache " + url);
   const cache = await window.caches.open("funscript-cache");
   const svgUrl = url + ".svg";
-  const cachedResponse = await cache.match(svgUrl);
+  const cachedResponse = userSettings.cache_heatmaps ? await cache.match(svgUrl) : null;
   console.timeEnd("readCache " + url);
   if (cachedResponse) {
+    // Update last activity time when accessing cached SVG
+    const cacheInfo = JSON.parse(
+      localStorage.getItem("funscript-cache-info") || "{}",
+    );
+    cacheInfo.lastActivity = Date.now();
+    localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
+    
     return URL.createObjectURL(await cachedResponse.blob());
   }
 
@@ -169,14 +154,9 @@ async function generateSvgBlobUrl(url) {
   console.timeEnd("fetchFunscript " + url);
   console.time("toSvgElement " + svgUrl);
   // Use user setting if present, else theme setting
-  const solidBackground = (function() {
-    const local = localStorage.getItem("user-solid-background");
-    if (local === "true") return true;
-    if (local === "false") return false;
-    return settings.solid_background;
-  })();
+  const solidBackground = userSettings.solid_background;
   const svg = funscript.toSvgElement({
-    ...(solidBackground ? { bgOpacity: 0 } : {}),
+    ...(solidBackground ? { solidTitleBackground: true } : {}),
   });
   console.timeEnd("toSvgElement " + svgUrl);
   const blob = new Blob([svg], { type: "image/svg+xml" });
@@ -185,13 +165,13 @@ async function generateSvgBlobUrl(url) {
     localStorage.getItem("funscript-cache-info") || "{}",
   );
   cacheInfo.version ??= CACHE_INFO_VERSION;
+  cacheInfo.lastActivity = Date.now();
   let scripts = (cacheInfo.scripts ??= {});
   scripts[url] = {
     ...scripts[url],
     url,
     svgCachedAt: Date.now(),
   };
-  cacheInfo.version = CACHE_INFO_VERSION;
   localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
 
   await cache.put(svgUrl, new Response(blob));
