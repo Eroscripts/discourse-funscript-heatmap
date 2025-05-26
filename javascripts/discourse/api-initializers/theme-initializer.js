@@ -3,12 +3,58 @@ import { apiInitializer } from "discourse/lib/api";
 import { Funscript } from "../lib/funlib"; 
 
 export default apiInitializer((api) => {
+  // Inject user settings UI into preferences page
+  api.onPageChange((url) => {
+    if (url.startsWith("/u/") && url.includes("/preferences")) {
+      setTimeout(() => {
+        if (document.getElementById("heatmap-user-settings")) return;
+        const container = document.createElement("div");
+        container.id = "heatmap-user-settings";
+        container.style.margin = "2em 0";
+        container.innerHTML = `
+          <h3>Heatmap User Settings</h3>
+          <label>
+            <input type="checkbox" id="user-disable-heatmaps">
+            Disable funscript heatmap generation
+          </label><br>
+          <label>
+            <input type="checkbox" id="user-solid-background">
+            Use solid background color in heatmaps
+          </label>
+        `;
+        const preferences = document.querySelector(".user-preferences");
+        if (preferences) {
+          preferences.appendChild(container);
+          document.getElementById("user-disable-heatmaps").checked =
+            localStorage.getItem("user-disable-heatmaps") === "true";
+          document.getElementById("user-solid-background").checked =
+            localStorage.getItem("user-solid-background") === "true";
+          document.getElementById("user-disable-heatmaps").addEventListener("change", (e) => {
+            localStorage.setItem("user-disable-heatmaps", e.target.checked);
+          });
+          document.getElementById("user-solid-background").addEventListener("change", (e) => {
+            localStorage.setItem("user-solid-background", e.target.checked);
+          });
+        }
+      }, 500);
+    }
+  });
+
+  // Helper to get user setting or fallback to theme setting
+  function getUserOrThemeSetting(key, themeDefault) {
+    const local = localStorage.getItem(key);
+    if (local === "true") return true;
+    if (local === "false") return false;
+    return themeDefault;
+  }
+
   console.log("[heatmap on]");
 
   api.decorateCookedElement(
     async (cookedElement) => {
-      // Check if heatmaps are disabled
-      if (settings.disable_heatmaps) {
+      // Use user setting if present, else theme setting
+      const disableHeatmaps = getUserOrThemeSetting("user-disable-heatmaps", settings.disable_heatmaps);
+      if (disableHeatmaps) {
         return;
       }
 
@@ -122,10 +168,15 @@ async function generateSvgBlobUrl(url) {
   const funscript = await fetchFunscript(url);
   console.timeEnd("fetchFunscript " + url);
   console.time("toSvgElement " + svgUrl);
+  // Use user setting if present, else theme setting
+  const solidBackground = (function() {
+    const local = localStorage.getItem("user-solid-background");
+    if (local === "true") return true;
+    if (local === "false") return false;
+    return settings.solid_background;
+  })();
   const svg = funscript.toSvgElement({
-    ...settings.solid_background ? { 
-      bgOpacity: 0
-    } : {},
+    ...(solidBackground ? { bgOpacity: 0 } : {}),
   });
   console.timeEnd("toSvgElement " + svgUrl);
   const blob = new Blob([svg], { type: "image/svg+xml" });
