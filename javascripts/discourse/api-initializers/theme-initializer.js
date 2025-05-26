@@ -156,7 +156,7 @@ async function generateSvgBlobUrl(url) {
   // Use user setting if present, else theme setting
   const solidBackground = userSettings.solid_background;
   const svg = funscript.toSvgElement({
-    ...(solidBackground ? { solidTitleBackground: true } : {}),
+    ...(solidBackground ? { solidTitleBackground: true, headerOpacity: 0.2 } : {}),
   });
   console.timeEnd("toSvgElement " + svgUrl);
   const blob = new Blob([svg], { type: "image/svg+xml" });

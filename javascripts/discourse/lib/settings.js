@@ -29,6 +29,7 @@ export const userSettings = new Proxy(user_settings_desc, {
 export function makeSettingsEdits() {
     const container = document.createElement('div');
     container.id = 'heatmap-user-settings'
+    container.style.marginTop = '2em'
     let h3 = document.createElement('h3');
     h3.textContent = 'Heatmap User Settings';
     for (const [key, text] of Object.entries(user_settings_desc)) {

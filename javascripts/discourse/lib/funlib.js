@@ -942,7 +942,8 @@ var svgDefaultOptions = {
   scriptSpacing: 4,
   normalize: true,
   width: 690,
-  font: "Arial, sans-serif"
+  font: "Arial, sans-serif",
+  solidTitleBackground: false
 };
 var isBrowser = typeof document !== "undefined";
 function textToSvgLength(text, font) {
@@ -1077,7 +1078,8 @@ function toSvgG(script, ops) {
     mergeLimit,
     axisCells,
     normalize = true,
-    width
+    width,
+    solidTitleBackground
   } = ops;
   if (!title) {
     if (script.file?.filePath) {
@@ -1100,6 +1102,7 @@ function toSvgG(script, ops) {
     title += "::bad";
     axis = "!!!";
   }
+  const round2 = (x) => +x.toFixed(2);
   const stats = script.toStats();
   const graphWidth = width - 50;
   const xx = [0, 46 - dw, 46, width];
@@ -1107,7 +1110,8 @@ function toSvgG(script, ops) {
   const bgGradientId = `funsvg-grad-${Math.random().toString(26).slice(2)}`;
   const axisTitleTop = axisCells === 1 ? yy[0] : yy[2];
   const color = "transparent";
-  const round2 = (x) => +x.toFixed(2);
+  const axisColor = speedToHexCached(stats.AvgSpeed);
+  const axisOpacity = round2(headerOpacity * Math.max(0.5, Math.min(1, stats.AvgSpeed / 100)));
   return `
     <g transform="${ops.transform}">
       
@@ -1115,8 +1119,8 @@ function toSvgG(script, ops) {
         <defs>${toSvgBackgroundGradient(script, bgGradientId)}</defs>
         <rect class="funsvg-bg-axis-drop" x="0" y="${axisTitleTop}" width="${xx[1]}" height="${yy[3] - axisTitleTop}" fill="#ccc" opacity="${round2(bgOpacity * 1.5)}"></rect>
         <rect class="funsvg-bg-title-drop" x="${xx[2]}" width="${graphWidth}" height="${yy[1]}" fill="#ccc" opacity="${round2(bgOpacity * 1.5)}"></rect>
-        <rect class="funsvg-bg-axis" x="0" y="${axisTitleTop}" width="${xx[1]}" height="${yy[3] - axisTitleTop}" fill="${speedToHexCached(stats.AvgSpeed)}" opacity="${round2(headerOpacity * Math.max(0.5, Math.min(1, stats.AvgSpeed / 100)))}"></rect>
-        <rect class="funsvg-bg-title" x="${xx[2]}" width="${graphWidth}" height="${yy[1]}" fill="url(#${bgGradientId})" opacity="${round2(headerOpacity)}"></rect>
+        <rect class="funsvg-bg-axis" x="0" y="${axisTitleTop}" width="${xx[1]}" height="${yy[3] - axisTitleTop}" fill="${axisColor}" opacity="${axisOpacity}"></rect>
+        <rect class="funsvg-bg-title" x="${xx[2]}" width="${graphWidth}" height="${yy[1]}" fill="${solidTitleBackground ? axisColor : `url(#${bgGradientId})`}" opacity="${round2(solidTitleBackground ? axisOpacity * headerOpacity : headerOpacity)}"></rect>
         <rect class="funsvg-bg-graph" x="${xx[2]}" width="${graphWidth}" y="${yy[1]}" height="${yy[3] - yy[1]}" fill="url(#${bgGradientId})" opacity="${round2(bgOpacity)}"></rect>
       </g>
 
