@@ -50,6 +50,7 @@ export default apiInitializer((api) => {
           }
 
           const img = document.createElement("img");
+          img.style.display = "block";
           img.style.willChange = "opacity"; // improve draw perf
           spanAContainer.prepend(img);
 
@@ -109,7 +110,7 @@ async function generateSvgBlobUrl(
     const svg = funscript.toSvgElement({
       width,
       ...(solidBackground
-        ? { solidTitleBackground: true, headerOpacity: 0.2 }
+        ? { solidTitleBackground: true, headerOpacity: 0.2, halo: false }
         : {}),
     });
     console.timeEnd("toSvgElement " + svgUrl);

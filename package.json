@@ -11,5 +11,9 @@
   },
   "module": "index.ts",
   "type": "module",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "prettier": "latest",
+    "@types/bun": "latest"
+  }
 }

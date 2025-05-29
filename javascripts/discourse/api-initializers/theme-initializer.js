@@ -46,6 +46,7 @@ var theme_initializer_default = apiInitializer((api) => {
         spanAContainer.append(spanAContainer.nextSibling);
       }
       const img = document.createElement("img");
+      img.style.display = "block";
       img.style.willChange = "opacity";
       spanAContainer.prepend(img);
       const svgUrl = await generateSvgBlobUrl(a.href);
@@ -84,7 +85,7 @@ async function generateSvgBlobUrl(url, width = 690, funscript) {
     const solidBackground = userSettings.solid_background;
     const svg = funscript.toSvgElement({
       width,
-      ...solidBackground ? { solidTitleBackground: true, headerOpacity: 0.2 } : {}
+      ...solidBackground ? { solidTitleBackground: true, headerOpacity: 0.2, halo: false } : {}
     });
     console.timeEnd("toSvgElement " + svgUrl);
     const blob = new Blob([svg], { type: "image/svg+xml" });

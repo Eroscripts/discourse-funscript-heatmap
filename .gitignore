@@ -8,9 +8,11 @@
 !javascripts/
 !javascripts/**/
 
-
 !src/
 !src/**/
+
+!srcipts/
+!srcipts/**/
 
 !**/*.js
 !**/*.ts

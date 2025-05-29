@@ -943,6 +943,7 @@ var svgDefaultOptions = {
   normalize: true,
   width: 690,
   font: "Arial, sans-serif",
+  halo: true,
   solidTitleBackground: false
 };
 var isBrowser = typeof document !== "undefined";
@@ -1130,15 +1131,15 @@ function toSvgG(script, ops) {
       </g>
       
       <g class="funsvg-titles">
-        <g class="funsvg-titles-drop" stroke="white" opacity="0.5" paint-order="stroke fill markers" stroke-width="3" stroke-dasharray="none" stroke-linejoin="round" fill="transparent">
-          <text class="funsvg-axis-drop" opacity="0" x="${xx[1] / 2}" y="${(axisTitleTop + yy[3]) / 2 + (axisTitleTop === yy[2] ? 2 : 4)}" font-size="250%" text-anchor="middle" dominant-baseline="middle"> ${axis} </text>
-          <text class="funsvg-title-drop" x="49" y="15" lengthAdjust="spacingAndGlyphs" ${textToSvgLength(title, `14px ${ops.font}`) > 450 ? 'textLength="450"' : ""}> ${textToSvgText(title)} </text>
-          ${Object.entries(stats).reverse().map(([k, v], i) => `
-              <text class="funsvg-stat-label-drop" x="${xx[3] - 7 - i * 46}" y="7" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
-              <text class="funsvg-stat-value-drop" x="${xx[3] - 7 - i * 46}" y="17" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
-            `).join(`
+        ${!ops.halo ? "" : ` <g class="funsvg-titles-halo" stroke="white" opacity="0.5" paint-order="stroke fill markers" stroke-width="3" stroke-dasharray="none" stroke-linejoin="round" fill="transparent">
+                <text class="funsvg-axis-halo" opacity="0" x="${xx[1] / 2}" y="${(axisTitleTop + yy[3]) / 2 + (axisTitleTop === yy[2] ? 2 : 4)}" font-size="250%" text-anchor="middle" dominant-baseline="middle"> ${axis} </text>
+                <text class="funsvg-title-halo" x="49" y="15" lengthAdjust="spacingAndGlyphs" ${textToSvgLength(title, `14px ${ops.font}`) > 450 ? 'textLength="450"' : ""}> ${textToSvgText(title)} </text>
+                ${Object.entries(stats).reverse().map(([k, v], i) => `
+                    <text class="funsvg-stat-label-halo" x="${xx[3] - 7 - i * 46}" y="7" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
+                    <text class="funsvg-stat-value-halo" x="${xx[3] - 7 - i * 46}" y="17" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
+                  `).join(`
 `)} 
-        </g>
+              </g>`}
         <text class="funsvg-axis" x="${xx[1] / 2}" y="${(axisTitleTop + yy[3]) / 2 + (axisTitleTop === yy[2] ? 2 : 4)}" font-size="250%" text-anchor="middle" dominant-baseline="middle"> ${axis} </text>
         <text class="funsvg-title" x="49" y="15" lengthAdjust="spacingAndGlyphs" ${textToSvgLength(title, `14px ${ops.font}`) > 450 ? 'textLength="450"' : ""}> ${textToSvgText(title)} </text>
         ${Object.entries(stats).reverse().map(([k, v], i) => `
