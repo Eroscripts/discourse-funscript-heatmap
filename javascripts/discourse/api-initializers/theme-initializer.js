@@ -5,10 +5,15 @@ import {
   makeSettingsEdits,
   userSettings
 } from "../lib/settings.js";
+import {
+  clearExpiredCache,
+  getCached
+} from "../lib/cache.js";
 
 // src/api-initializers/theme-initializer.ts
 import { apiInitializer } from "discourse/lib/api";
 var theme_initializer_default = apiInitializer((api) => {
+  clearExpiredCache();
   api.onPageChange((url) => {
     if (url.startsWith("/u/") && url.includes("/preferences")) {
       setTimeout(() => {
@@ -22,12 +27,13 @@ var theme_initializer_default = apiInitializer((api) => {
     }
   });
   api.decorateCookedElement(async (cookedElement) => {
-    const disableHeatmaps = userSettings.disable_heatmaps;
-    if (disableHeatmaps) {
+    if (userSettings.disable_heatmaps) {
       return;
     }
-    let aa = Array.from(cookedElement.querySelectorAll('a[href$=".funscript"]'));
-    await Promise.all(aa.map(async (a) => {
+    let links = [
+      ...cookedElement.querySelectorAll('a[href$=".funscript"]')
+    ];
+    await Promise.all(links.map(async (a) => {
       if (a.classList.contains("attachment"))
         a.classList.remove("attachment");
       let spanAContainer = document.createElement("span");
@@ -47,103 +53,40 @@ var theme_initializer_default = apiInitializer((api) => {
     id: "funscript-heatmap"
   });
 });
-var CACHE_INFO_VERSION = "" + 1 + userSettings.cache_heatmaps + userSettings.solid_background;
-var CACHE_INACTIVITY_HOURS = 8;
-async function cleanStorage() {
-  const cache = await window.caches.open("funscript-cache");
-  let cacheInfo = JSON.parse(localStorage.getItem("funscript-cache-info") || `{ version: ${CACHE_INFO_VERSION}, scripts: {}, lastActivity: ${Date.now()} }`);
-  if (cacheInfo.version !== CACHE_INFO_VERSION) {
-    cacheInfo = {
-      version: CACHE_INFO_VERSION,
-      scripts: {},
-      lastActivity: Date.now()
-    };
-    window.caches.delete("funscript-cache");
-  }
-  if (!cacheInfo.lastActivity) {
-    cacheInfo.lastActivity = Date.now();
-  }
-  const inactivityHours = (Date.now() - cacheInfo.lastActivity) / 3600000;
-  if (inactivityHours > CACHE_INACTIVITY_HOURS) {
-    console.log(`Cache inactive for ${inactivityHours.toFixed(2)} hours, clearing completely`);
-    await window.caches.delete("funscript-cache");
-    cacheInfo = {
-      version: CACHE_INFO_VERSION,
-      scripts: {},
-      lastActivity: Date.now()
-    };
-  } else {
-    cacheInfo.lastActivity = Date.now();
-  }
-  localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
-}
-cleanStorage();
 async function fetchFunscript(url) {
-  const cache = await window.caches.open("funscript-cache");
-  const cachedResponse = await cache.match(url);
-  let response = cachedResponse;
+  let response = await getCached(url, fetch);
   if (!response) {
-    response = await fetch(url);
-  }
-  if (!response.ok) {
-    throw new Error(`Failed to fetch funscript: ${response.statusText}`);
+    throw new Error(`Failed to fetch funscript: ${url}`);
   }
   let filePath = response.headers.get("Content-Disposition")?.match(/filename\*=UTF-8''([^]+.funscript)$/)?.[1];
   if (!filePath) {
     throw new Error("No file path found");
   }
-  filePath = decodeURIComponent(filePath);
-  const cacheInfo = JSON.parse(localStorage.getItem("funscript-cache-info") || "{}");
-  cacheInfo.version ??= CACHE_INFO_VERSION;
-  cacheInfo.lastActivity = Date.now();
-  let scripts = cacheInfo.scripts ??= {};
-  if (!cachedResponse) {
-    scripts[url] = {
-      ...scripts[url],
-      url,
-      filePath,
-      scriptCachedAt: Date.now()
-    };
-    await cache.put(url, response.clone());
-  }
-  localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
   const json = await response.json();
   return new Funscript(json, { file: decodeURIComponent(filePath) });
 }
 async function generateSvgBlobUrl(url) {
   console.time("readCache " + url);
-  const cache = await window.caches.open("funscript-cache");
   const svgUrl = url + ".svg";
-  const cachedResponse = userSettings.cache_heatmaps ? await cache.match(svgUrl) : null;
-  console.timeEnd("readCache " + url);
-  if (cachedResponse) {
-    const cacheInfo2 = JSON.parse(localStorage.getItem("funscript-cache-info") || "{}");
-    cacheInfo2.lastActivity = Date.now();
-    localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo2));
-    return URL.createObjectURL(await cachedResponse.blob());
-  }
-  console.time("fetchFunscript " + url);
-  const funscript = await fetchFunscript(url);
-  console.timeEnd("fetchFunscript " + url);
-  console.time("toSvgElement " + svgUrl);
-  const solidBackground = userSettings.solid_background;
-  const svg = funscript.toSvgElement({
-    ...solidBackground ? { solidTitleBackground: true, headerOpacity: 0.2 } : {}
+  let response = await getCached(svgUrl, async () => {
+    console.time("fetchFunscript " + url);
+    const funscript = await fetchFunscript(url);
+    console.timeEnd("fetchFunscript " + url);
+    console.time("toSvgElement " + svgUrl);
+    const solidBackground = userSettings.solid_background;
+    const svg = funscript.toSvgElement({
+      ...solidBackground ? { solidTitleBackground: true, headerOpacity: 0.2 } : {}
+    });
+    console.timeEnd("toSvgElement " + svgUrl);
+    const blob = new Blob([svg], { type: "image/svg+xml" });
+    return new Response(blob);
   });
-  console.timeEnd("toSvgElement " + svgUrl);
-  const blob = new Blob([svg], { type: "image/svg+xml" });
-  const cacheInfo = JSON.parse(localStorage.getItem("funscript-cache-info") || "{}");
-  cacheInfo.version ??= CACHE_INFO_VERSION;
-  cacheInfo.lastActivity = Date.now();
-  let scripts = cacheInfo.scripts ??= {};
-  scripts[url] = {
-    ...scripts[url],
-    url,
-    svgCachedAt: Date.now()
-  };
-  localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
-  await cache.put(svgUrl, new Response(blob));
-  return URL.createObjectURL(blob);
+  if (response) {
+    return URL.createObjectURL(await response.blob());
+  } else {
+    console.error("Failed to generate SVG blob URL for " + url);
+    return "";
+  }
 }
 export {
   theme_initializer_default as default

@@ -1,16 +1,22 @@
+import {
+  clearCache
+} from "./cache.js";
+
 // src/lib/settings.ts
 var user_settings_desc = {
   disable_heatmaps: "Disable funscript heatmap generation",
   solid_background: "Use solid background color in heatmaps",
   cache_heatmaps: "Cache heatmaps for faster loading"
 };
-var userSettings = new Proxy(user_settings_desc, {
+var userSettings = new Proxy(settings, {
   get(target, prop) {
     let value = localStorage.getItem(`heatmap-${prop}`);
-    if (value === null) {
+    try {
+      return value ? JSON.parse(value) : settings[prop];
+    } catch (e) {
+      console.error(e);
       return settings[prop];
     }
-    return JSON.parse(value);
   },
   set(target, prop, value) {
     localStorage.setItem(`heatmap-${prop}`, JSON.stringify(value));
@@ -31,17 +37,17 @@ function makeSettingsEdits() {
     label.append(input, text);
     input.checked = userSettings[key];
     input.addEventListener("change", (e) => {
-      userSettings[key] = e.target.checked;
+      userSettings[key] = e.target?.checked;
+      clearCache();
     });
     container.appendChild(label);
   }
   return container;
 }
-var settings_default = user_settings_desc;
 export {
+  user_settings_desc,
   userSettings,
-  makeSettingsEdits,
-  settings_default as default
+  makeSettingsEdits
 };
 
 export { userSettings, makeSettingsEdits };
