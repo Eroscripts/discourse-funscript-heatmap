@@ -1,6 +1,6 @@
 // @ts-check
 import { apiInitializer } from "discourse/lib/api";
-import { Funscript } from "../lib/funlib"; 
+import { Funscript } from "../lib/funlib";
 import { makeSettingsEdits, userSettings } from "../lib/settings";
 
 export default apiInitializer((api) => {
@@ -11,12 +11,12 @@ export default apiInitializer((api) => {
         if (document.getElementById("heatmap-user-settings")) return;
         const preferences = document.querySelector(".user-preferences");
         if (preferences) {
-          preferences.appendChild(makeSettingsEdits()); 
+          preferences.appendChild(makeSettingsEdits());
         }
       }, 500);
     }
   });
-  
+
   api.decorateCookedElement(
     async (cookedElement) => {
       // Use user setting if present, else theme setting
@@ -24,7 +24,7 @@ export default apiInitializer((api) => {
       if (disableHeatmaps) {
         return;
       }
-      
+
       let aa = Array.from(
         cookedElement.querySelectorAll('a[href$=".funscript"]'),
       );
@@ -57,7 +57,8 @@ export default apiInitializer((api) => {
   );
 });
 
-const CACHE_INFO_VERSION = '' + 1 + userSettings.cache_heatmaps + userSettings.solid_background;
+const CACHE_INFO_VERSION =
+  "" + 1 + userSettings.cache_heatmaps + userSettings.solid_background;
 const CACHE_INACTIVITY_HOURS = 8;
 
 async function cleanStorage() {
@@ -67,27 +68,37 @@ async function cleanStorage() {
       `{ version: ${CACHE_INFO_VERSION}, scripts: {}, lastActivity: ${Date.now()} }`,
   );
   if (cacheInfo.version !== CACHE_INFO_VERSION) {
-    cacheInfo = { version: CACHE_INFO_VERSION, scripts: {}, lastActivity: Date.now() };
+    cacheInfo = {
+      version: CACHE_INFO_VERSION,
+      scripts: {},
+      lastActivity: Date.now(),
+    };
     window.caches.delete("funscript-cache");
   }
-  
+
   // Initialize lastActivity if it doesn't exist
   if (!cacheInfo.lastActivity) {
     cacheInfo.lastActivity = Date.now();
   }
-  
+
   // Check if cache has been inactive for more than 8 hours
   const inactivityHours = (Date.now() - cacheInfo.lastActivity) / 3600e3;
   if (inactivityHours > CACHE_INACTIVITY_HOURS) {
-    console.log(`Cache inactive for ${inactivityHours.toFixed(2)} hours, clearing completely`);
+    console.log(
+      `Cache inactive for ${inactivityHours.toFixed(2)} hours, clearing completely`,
+    );
     // Clear entire cache
     await window.caches.delete("funscript-cache");
-    cacheInfo = { version: CACHE_INFO_VERSION, scripts: {}, lastActivity: Date.now() };
+    cacheInfo = {
+      version: CACHE_INFO_VERSION,
+      scripts: {},
+      lastActivity: Date.now(),
+    };
   } else {
     // Update last activity time since we're accessing the cache
     cacheInfo.lastActivity = Date.now();
   }
-  
+
   localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
 }
 cleanStorage();
@@ -116,7 +127,7 @@ async function fetchFunscript(url) {
   cacheInfo.version ??= CACHE_INFO_VERSION;
   cacheInfo.lastActivity = Date.now();
   let scripts = (cacheInfo.scripts ??= {});
-  
+
   if (!cachedResponse) {
     scripts[url] = {
       ...scripts[url],
@@ -126,7 +137,7 @@ async function fetchFunscript(url) {
     };
     await cache.put(url, response.clone());
   }
-  
+
   localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
   const json = await response.json();
   return new Funscript(json, { file: decodeURIComponent(filePath) });
@@ -136,7 +147,9 @@ async function generateSvgBlobUrl(url) {
   console.time("readCache " + url);
   const cache = await window.caches.open("funscript-cache");
   const svgUrl = url + ".svg";
-  const cachedResponse = userSettings.cache_heatmaps ? await cache.match(svgUrl) : null;
+  const cachedResponse = userSettings.cache_heatmaps
+    ? await cache.match(svgUrl)
+    : null;
   console.timeEnd("readCache " + url);
   if (cachedResponse) {
     // Update last activity time when accessing cached SVG
@@ -145,7 +158,7 @@ async function generateSvgBlobUrl(url) {
     );
     cacheInfo.lastActivity = Date.now();
     localStorage.setItem("funscript-cache-info", JSON.stringify(cacheInfo));
-    
+
     return URL.createObjectURL(await cachedResponse.blob());
   }
 
@@ -156,7 +169,9 @@ async function generateSvgBlobUrl(url) {
   // Use user setting if present, else theme setting
   const solidBackground = userSettings.solid_background;
   const svg = funscript.toSvgElement({
-    ...(solidBackground ? { solidTitleBackground: true, headerOpacity: 0.2 } : {}),
+    ...(solidBackground
+      ? { solidTitleBackground: true, headerOpacity: 0.2 }
+      : {}),
   });
   console.timeEnd("toSvgElement " + svgUrl);
   const blob = new Blob([svg], { type: "image/svg+xml" });

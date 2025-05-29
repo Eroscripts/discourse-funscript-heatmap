@@ -1,1 +1,1 @@
-export * from '@eroscripts/funlib'
+export * from "@eroscripts/funlib";

@@ -1,4 +1,4 @@
-// src/lib/funlib.ts
+// ../../projects/funlib/node_modules/colorizr/dist/index.mjs
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
   for (var name2 in all)
@@ -460,6 +460,8 @@ function oklch2hsl(input) {
   const value = parseInput(input, "oklch");
   return rgb2hsl(oklch2rgb(value));
 }
+
+// ../../projects/funlib/src/misc.ts
 function clamp2(value, left, right) {
   return Math.max(left, Math.min(right, value));
 }
@@ -505,6 +507,8 @@ function compareWithOrder(a, b, order) {
   }
   return 0;
 }
+
+// ../../projects/funlib/src/converter.ts
 function timeSpanToMs(timeSpan) {
   if (typeof timeSpan !== "string") {
     throw new TypeError("timeSpanToMs: timeSpan must be a string");
@@ -641,7 +645,6 @@ function speedToHex(speed) {
   const [l, c, h] = speedToOklch(speed);
   return oklch2hex({ l, c, h });
 }
-
 class TCodeAction extends Array {
   static from(a) {
     return new TCodeAction(...a);
@@ -679,6 +682,8 @@ class TCodeList extends Array {
 `;
   }
 }
+
+// ../../projects/funlib/src/manipulations.ts
 function actionsToLines(actions) {
   return actions.map((e, i, a) => {
     const p = a[i - 1];
@@ -913,6 +918,8 @@ function limitPeakSpeed(actions, maxSpeed) {
   }
   return connectSegments(segments);
 }
+
+// ../../projects/funlib/src/svg.ts
 var speedToHexCache = new Map;
 function speedToHexCached(speed) {
   speed = Math.round(speed);
@@ -980,8 +987,8 @@ function toSvgBackgroundGradient(script, linearGradientId) {
     const N = ~~((len - 500) / 1000);
     const ra = Array.from({ length: N }, (_, i) => {
       return [
-        new FunAction({ at: lerp2(a.at, b.at, i / N), pos: lerp2(a.pos, b.pos, i / N) }),
-        new FunAction({ at: lerp2(a.at, b.at, (i + 1) / N), pos: lerp2(a.pos, b.pos, (i + 1) / N) }),
+        new FunAction({ at: lerp(a.at, b.at, i / N), pos: lerp(a.pos, b.pos, i / N) }),
+        new FunAction({ at: lerp(a.at, b.at, (i + 1) / N), pos: lerp(a.pos, b.pos, (i + 1) / N) }),
         s
       ];
     });
@@ -1152,10 +1159,8 @@ function toSvgG(script, ops) {
     </g>
   `;
 }
-function lerp2(min, max, t) {
-  return min + t * (max - min);
-}
 
+// ../../projects/funlib/src/index.ts
 class FunAction {
   static linkList(list, extras) {
     if (extras?.parent === true)
@@ -1287,6 +1292,9 @@ class FunChapter {
     return orderTrimJson(this, FunChapter.jsonOrder, {
       name: ""
     });
+  }
+  clone() {
+    return new FunChapter(this);
   }
 }
 

@@ -6,7 +6,7 @@ disable_heatmaps:
 solid_background:
   type: bool
   default: false
-  description: "Use solid background color instead of gradient in heatmaps" 
+  description: "Use solid background color instead of gradient in heatmaps"
 
 cache_heatmaps:
   type: bool

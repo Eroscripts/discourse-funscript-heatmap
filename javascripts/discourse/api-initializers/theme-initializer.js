@@ -53,7 +53,11 @@ async function cleanStorage() {
   const cache = await window.caches.open("funscript-cache");
   let cacheInfo = JSON.parse(localStorage.getItem("funscript-cache-info") || `{ version: ${CACHE_INFO_VERSION}, scripts: {}, lastActivity: ${Date.now()} }`);
   if (cacheInfo.version !== CACHE_INFO_VERSION) {
-    cacheInfo = { version: CACHE_INFO_VERSION, scripts: {}, lastActivity: Date.now() };
+    cacheInfo = {
+      version: CACHE_INFO_VERSION,
+      scripts: {},
+      lastActivity: Date.now()
+    };
     window.caches.delete("funscript-cache");
   }
   if (!cacheInfo.lastActivity) {
@@ -63,7 +67,11 @@ async function cleanStorage() {
   if (inactivityHours > CACHE_INACTIVITY_HOURS) {
     console.log(`Cache inactive for ${inactivityHours.toFixed(2)} hours, clearing completely`);
     await window.caches.delete("funscript-cache");
-    cacheInfo = { version: CACHE_INFO_VERSION, scripts: {}, lastActivity: Date.now() };
+    cacheInfo = {
+      version: CACHE_INFO_VERSION,
+      scripts: {},
+      lastActivity: Date.now()
+    };
   } else {
     cacheInfo.lastActivity = Date.now();
   }

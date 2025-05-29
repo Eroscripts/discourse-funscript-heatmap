@@ -1,3 +1,3 @@
 declare module "discourse/lib/api" {
-    export function apiInitializer(callback: (api: any) => void): void;
+  export function apiInitializer(callback: (api: any) => void): void;
 }
