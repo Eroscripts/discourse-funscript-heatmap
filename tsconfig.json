@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "target": "ESNext",
+        "target": "ES2020",
         "module": "ESNext",
         "strict": true,
         "skipLibCheck": true,
@@ -8,7 +8,20 @@
         "allowJs": true,
         "checkJs": true,
         "isolatedModules": true,
-        "noEmit": true,
+        "noEmit": false,
         "noImplicitAny": true,
-    }
+        "outDir": "./javascripts",
+        "rootDir": "./src",
+        "declaration": false,
+        "removeComments": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true
+    },
+    "include": [
+        "src/**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        "javascripts"
+    ]
 }

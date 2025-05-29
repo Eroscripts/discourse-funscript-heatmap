@@ -1,0 +1,14 @@
+{
+  "name": "discourse-funscript-heatmap",
+  "version": "1.0.0",
+  "description": "Discourse theme component for funscript heatmap generation",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+} 

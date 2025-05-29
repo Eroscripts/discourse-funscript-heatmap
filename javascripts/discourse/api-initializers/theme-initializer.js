@@ -57,7 +57,7 @@ export default apiInitializer((api) => {
   );
 });
 
-const CACHE_INFO_VERSION = 1;
+const CACHE_INFO_VERSION = '' + 1 + userSettings.cache_heatmaps + userSettings.solid_background;
 const CACHE_INACTIVITY_HOURS = 8;
 
 async function cleanStorage() {
