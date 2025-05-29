@@ -10,5 +10,8 @@
   "devDependencies": {
     "typescript": "^5.0.0",
     "@types/node": "^20.0.0"
+  },
+  "dependencies": {
+    "@eroscripts/funlib": "link:@eroscripts/funlib"
   }
-} 
+}

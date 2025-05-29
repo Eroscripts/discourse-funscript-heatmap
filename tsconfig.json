@@ -10,7 +10,7 @@
         "isolatedModules": true,
         "noEmit": false,
         "noImplicitAny": true,
-        "outDir": "./javascripts",
+        "outDir": "./javascripts/discourse/",
         "rootDir": "./src",
         "declaration": false,
         "removeComments": true,
