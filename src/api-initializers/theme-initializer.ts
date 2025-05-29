@@ -38,8 +38,10 @@ export default apiInitializer((api) => {
           if (a.classList.contains("attachment"))
             a.classList.remove("attachment");
 
-          let spanAContainer = document.createElement("span");
+          let spanAContainer = document.createElement("a");
+          spanAContainer.setAttribute("href", a.getAttribute("href") || "#");
           spanAContainer.className = "funscript-link-container";
+          spanAContainer.style.cssText = "display: block; line-height: 80%";
           a.replaceWith(spanAContainer);
           spanAContainer.append(a);
 
@@ -47,11 +49,20 @@ export default apiInitializer((api) => {
             spanAContainer.append(spanAContainer.nextSibling);
           }
 
-          const svgUrl = await generateSvgBlobUrl(a.href);
           const img = document.createElement("img");
           img.style.willChange = "opacity"; // improve draw perf
+          spanAContainer.prepend(img);
+
+          const svgUrl = await generateSvgBlobUrl(a.href);
           img.src = svgUrl;
-          spanAContainer.append(img);
+
+          await img.decode();
+          await new Promise(requestAnimationFrame);
+
+          let targetWidth = spanAContainer.getBoundingClientRect().width;
+          if (targetWidth > 700) {
+            img.src = await generateSvgBlobUrl(a.href, ~~targetWidth);
+          }
         }),
       );
     },
@@ -79,26 +90,36 @@ async function fetchFunscript(url: string): Promise<Funscript> {
   return new Funscript(json, { file: decodeURIComponent(filePath) });
 }
 
-async function generateSvgBlobUrl(url: string): Promise<string> {
+async function generateSvgBlobUrl(
+  url: string,
+  width: number = 690,
+  funscript?: Funscript,
+): Promise<string> {
   console.time("readCache " + url);
-  const svgUrl = url + ".svg";
+  const svgUrl = url + ".svg" + (width === 690 ? "" : "?width=" + width);
 
   let response = await getCached(svgUrl, async () => {
     console.time("fetchFunscript " + url);
-    const funscript = await fetchFunscript(url);
+    funscript ??= await fetchFunscript(url);
     console.timeEnd("fetchFunscript " + url);
     console.time("toSvgElement " + svgUrl);
+
     // Use user setting if present, else theme setting
     const solidBackground = userSettings.solid_background;
     const svg = funscript.toSvgElement({
+      width,
       ...(solidBackground
         ? { solidTitleBackground: true, headerOpacity: 0.2 }
         : {}),
     });
     console.timeEnd("toSvgElement " + svgUrl);
+
     const blob = new Blob([svg], { type: "image/svg+xml" });
     return new Response(blob);
   });
+
+  console.timeEnd("readCache " + url);
+
   if (response) {
     return URL.createObjectURL(await response.blob());
   } else {
