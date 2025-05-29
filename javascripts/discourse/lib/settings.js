@@ -1,6 +1,6 @@
 import {
   clearCache
-} from "./cache.js";
+} from "./cache";
 
 // src/lib/settings.ts
 var user_settings_desc = {
@@ -49,5 +49,3 @@ export {
   userSettings,
   makeSettingsEdits
 };
-
-export { userSettings, makeSettingsEdits };

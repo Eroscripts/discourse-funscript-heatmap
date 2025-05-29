@@ -42,5 +42,3 @@ export {
   clearExpiredCache,
   clearCache
 };
-
-export { clearCache, clearExpiredCache, getCached };

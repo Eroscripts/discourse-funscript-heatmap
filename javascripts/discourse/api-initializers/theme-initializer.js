@@ -1,14 +1,14 @@
 import {
   Funscript
-} from "../lib/funlib.js";
+} from "../lib/funlib";
 import {
   makeSettingsEdits,
   userSettings
-} from "../lib/settings.js";
+} from "../lib/settings";
 import {
   clearExpiredCache,
   getCached
-} from "../lib/cache.js";
+} from "../lib/cache";
 
 // src/api-initializers/theme-initializer.ts
 import { apiInitializer } from "discourse/lib/api";
