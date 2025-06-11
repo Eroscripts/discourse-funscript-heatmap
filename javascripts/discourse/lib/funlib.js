@@ -1628,7 +1628,7 @@ function toSvgG(script, ops) {
       return height + this.headerExtra;
     },
     get axisText() {
-      return (this.top + this.svgBottom) / 2 + 4 - this.headerExtra / 2;
+      return (this.top + this.svgBottom) / 2 + 4 + this.headerExtra / 2;
     },
     headerText: headerHeight / 2 + 5,
     get statLabelText() {
