@@ -1724,6 +1724,7 @@ function funscriptOptions(width = 690) {
 }
 function handyMark(fun) {
   if ("_isForHandy" in fun) return;
+  if (fun.file?.id) return;
   if (fun.axes.length) return;
   const stats = fun.toStats();
   if (stats.MaxSpeed > 500) return;

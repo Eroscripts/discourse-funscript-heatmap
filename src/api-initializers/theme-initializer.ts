@@ -108,7 +108,10 @@ export default apiInitializer((api) => {
         if (m.axes.length == 0) continue;
         if (!m.file?.mergedFiles) continue;
 
-        if (userSettings.use_max_extension) {
+        if (
+          userSettings.use_max_extension &&
+          !m.file.filePath.endsWith(".max.funscript")
+        ) {
           m.file!.axisName = "max" as any;
         }
         let links = m.file!.mergedFiles!.map(

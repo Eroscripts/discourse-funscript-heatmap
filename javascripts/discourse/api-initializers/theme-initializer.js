@@ -86,7 +86,10 @@ var theme_initializer_default = apiInitializer((api) => {
       for (let m of merged) {
         if (m.axes.length == 0) continue;
         if (!m.file?.mergedFiles) continue;
-        if (userSettings.use_max_extension) {
+        if (
+          userSettings.use_max_extension &&
+          !m.file.filePath.endsWith(".max.funscript")
+        ) {
           m.file.axisName = "max";
         }
         let links2 = m.file.mergedFiles.map((f) =>
