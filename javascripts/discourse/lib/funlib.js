@@ -630,10 +630,6 @@ var axisNameToAxisMap = fromEntries(axisPairs.map(([a, b]) => [b, a]));
 var axisIds = axisPairs.map((e) => e[0]);
 var axisNames = axisPairs.map((e) => e[1]);
 var axisLikes = axisPairs.flat();
-function axisToName(axis) {
-  if (axis && axis in axisToNameMap) return axisToNameMap[axis];
-  throw new Error(`axisToName: ${axis} is not supported`);
-}
 function axisLikeToAxis(axisLike) {
   if (!axisLike) return "L0";
   if (axisIds.includes(axisLike)) return axisLike;
@@ -1360,7 +1356,7 @@ var SPACING_BETWEEN_AXES = 0;
 var SPACING_BETWEEN_FUNSCRIPTS = 4;
 var SVG_PADDING = 0;
 var svgDefaultOptions = {
-  title: "",
+  title: null,
   lineWidth: 0.5,
   font: "Arial, sans-serif",
   axisFont: "Consolas, monospace",
@@ -1370,6 +1366,8 @@ var svgDefaultOptions = {
   headerOpacity: 0.7,
   mergeLimit: 500,
   normalize: true,
+  titleEllipsis: true,
+  titleSeparateLine: "auto",
   width: 690,
   height: 52,
   headerHeight: 20,
@@ -1397,6 +1395,14 @@ function textToSvgText(text) {
     "/": "&#x2F;",
   };
   return text.replace(/[&<>"'/]/g, (char) => entityMap[char] || char);
+}
+function truncateTextWithEllipsis(text, maxWidth, font) {
+  if (!text) return text;
+  if (textToSvgLength(text, font) <= maxWidth) return text;
+  while (text && textToSvgLength(text + "…", font) > maxWidth) {
+    text = text.slice(0, -1);
+  }
+  return text + "…";
 }
 function toSvgLines(script, { width, height, w = 2, mergeLimit = 500 }) {
   const duration = script.actualDuration;
@@ -1498,7 +1504,9 @@ function toSvgElement(scripts, ops) {
     pieces.push(
       toSvgG(s, {
         ...fullOps,
+        title: fullOps.title,
         transform: `translate(${SVG_PADDING}, ${y})`,
+        onDoubleTitle: () => (y += fullOps.headerHeight),
       }),
     );
     y += fullOps.height + SPACING_BETWEEN_AXES;
@@ -1506,7 +1514,9 @@ function toSvgElement(scripts, ops) {
       pieces.push(
         toSvgG(a, {
           ...fullOps,
+          title: fullOps.title ?? "",
           transform: `translate(${SVG_PADDING}, ${y})`,
+          onDoubleTitle: () => (y += fullOps.headerHeight),
         }),
       );
       y += fullOps.height + SPACING_BETWEEN_AXES;
@@ -1523,8 +1533,8 @@ function toSvgElement(scripts, ops) {
   </svg>`;
 }
 function toSvgG(script, ops) {
-  let {
-    title,
+  const {
+    title: rawTitle,
     lineWidth: w,
     graphOpacity,
     headerOpacity,
@@ -1538,15 +1548,58 @@ function toSvgG(script, ops) {
     normalize = true,
     width,
     solidHeaderBackground,
+    titleEllipsis,
+    titleSeparateLine,
+    font,
   } = ops;
-  const graphHeight = height - headerHeight - headerSpacing;
-  if (!title) {
+  let title = "";
+  if (rawTitle !== null) {
+    title = typeof rawTitle === "function" ? rawTitle(script) : rawTitle;
+  } else {
     if (script.file?.filePath) {
       title = script.file.filePath;
     } else if (script.parent?.file) {
-      title = "<" + axisToName(script.id) + ">";
+      title = "";
     }
   }
+  const stats = script.toStats();
+  const statCount = Object.keys(stats).length;
+  let useSeparateLine = false;
+  const xx = {
+    axisStart: 0,
+    axisEnd: axisWidth,
+    titleStart: axisWidth + axisSpacing,
+    svgEnd: width,
+    graphWidth: width - axisWidth - axisSpacing,
+    statText: (i) => width - 7 - i * 46,
+    get axisText() {
+      return this.axisEnd / 2;
+    },
+    get headerText() {
+      return this.titleStart + 3;
+    },
+    get textWidth() {
+      return this.statText(useSeparateLine ? 0 : statCount);
+    },
+  };
+  if (
+    title &&
+    titleSeparateLine !== false &&
+    textToSvgLength(title, `14px ${font}`) > xx.textWidth
+  ) {
+    useSeparateLine = true;
+  }
+  if (
+    title &&
+    titleEllipsis &&
+    textToSvgLength(title, `14px ${font}`) > xx.textWidth
+  ) {
+    title = truncateTextWithEllipsis(title, xx.textWidth, `14px ${font}`);
+  }
+  if (useSeparateLine) {
+    ops.onDoubleTitle();
+  }
+  const graphHeight = height - headerHeight - headerSpacing;
   script = script.clone();
   if (normalize) script.normalize();
   const isForHandy = "_isForHandy" in script && script._isForHandy;
@@ -1560,30 +1613,23 @@ function toSvgG(script, ops) {
     axis = "!!!";
   }
   const round2 = (x) => +x.toFixed(2);
-  const stats = script.toStats();
-  const xx = {
-    axisStart: 0,
-    axisEnd: axisWidth,
-    titleStart: axisWidth + axisSpacing,
-    svgEnd: width,
-    graphWidth: width - axisWidth - axisSpacing,
-    statX: (i) => width - 7 - i * 46,
-    get axisText() {
-      return this.axisEnd / 2;
-    },
-    get headerText() {
-      return this.titleStart + 3;
-    },
-  };
   const yy = {
     top: 0,
-    titleBottom: headerHeight,
-    graphTop: headerHeight + headerSpacing,
-    svgBottom: height,
+    titleBottom: headerHeight + (useSeparateLine ? headerHeight : 0),
+    get graphTop() {
+      return this.titleBottom + headerSpacing;
+    },
+    svgBottom: height + (useSeparateLine ? headerHeight : 0),
     get axisText() {
       return (this.top + this.svgBottom) / 2 + 4;
     },
-    headerText: 15,
+    headerText: headerHeight / 2 + 5,
+    get statLabelText() {
+      return this.headerText - 8;
+    },
+    get statValueText() {
+      return this.headerText + 2;
+    },
   };
   const bgGradientId = `funsvg-grad-${Math.random().toString(26).slice(2)}`;
   const axisColor = speedToHexCached(stats.AvgSpeed);
@@ -1612,13 +1658,13 @@ function toSvgG(script, ops) {
           !ops.halo
             ? ""
             : ` <g class="funsvg-titles-halo" stroke="white" opacity="0.5" paint-order="stroke fill markers" stroke-width="3" stroke-dasharray="none" stroke-linejoin="round" fill="transparent">
-                <text class="funsvg-title-halo" x="${xx.headerText}" y="${yy.headerText}" lengthAdjust="spacingAndGlyphs" ${textToSvgLength(title, `14px ${ops.font}`) > xx.graphWidth - 6 ? `textLength="${xx.graphWidth - 6}"` : ""}> ${textToSvgText(title)} </text>
+                <text class="funsvg-title-halo" x="${xx.headerText}" y="${yy.headerText}"> ${textToSvgText(title)} </text>
                 ${Object.entries(stats)
                   .reverse()
                   .map(
                     ([k, v], i) => `
-                    <text class="funsvg-stat-label-halo" x="${xx.statX(i)}" y="7" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
-                    <text class="funsvg-stat-value-halo" x="${xx.statX(i)}" y="17" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
+                    <text class="funsvg-stat-label-halo" x="${xx.statText(i)}" y="7" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
+                    <text class="funsvg-stat-value-halo" x="${xx.statText(i)}" y="17" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
                   `,
                   )
                   .reverse().join(`
@@ -1626,20 +1672,20 @@ function toSvgG(script, ops) {
               </g>`
         }
         <text class="funsvg-axis" x="${xx.axisText}" y="${yy.axisText}" font-size="250%" font-family="${axisFont}" text-anchor="middle" dominant-baseline="middle"> ${axis} </text>
-        <text class="funsvg-title" x="${xx.headerText}" y="${yy.headerText}" lengthAdjust="spacingAndGlyphs" ${textToSvgLength(title, `14px ${ops.font}`) > xx.graphWidth - 6 ? `textLength="${xx.graphWidth - 6}"` : ""}> ${textToSvgText(title)} </text>
+        <text class="funsvg-title" x="${xx.headerText}" y="${yy.headerText}"> ${textToSvgText(title)} </text>
         ${Object.entries(stats)
           .reverse()
           .map(
             ([k, v], i) => `
-            <text class="funsvg-stat-label" x="${xx.statX(i)}" y="7" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
-            <text class="funsvg-stat-value" x="${xx.statX(i)}" y="17" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
+            <text class="funsvg-stat-label" x="${xx.statText(i)}" y="7" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
+            <text class="funsvg-stat-value" x="${xx.statText(i)}" y="17" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
           `,
           )
           .reverse().join(`
 `)} 
       </g>
     </g>
-  `;
+    `;
 }
 function toSvgBlobUrl(script, ops) {
   const svg = toSvgElement(script, ops);

@@ -67,9 +67,9 @@ export default apiInitializer((api) => {
         if (container.nextSibling?.nodeType == 3) {
           container.append(container.nextSibling);
         }
-        if ((container.nextSibling as HTMLElement)?.tagName === "BR") {
-          (container.nextSibling as HTMLElement).remove();
-        }
+        // if ((container.nextSibling as HTMLElement)?.tagName === "BR") {
+        //   (container.nextSibling as HTMLElement).remove();
+        // }
         svg.then((svgUrl) => (img.src = svgUrl));
 
         return {

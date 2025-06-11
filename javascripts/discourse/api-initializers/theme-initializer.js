@@ -52,9 +52,6 @@ var theme_initializer_default = apiInitializer((api) => {
         if (container.nextSibling?.nodeType == 3) {
           container.append(container.nextSibling);
         }
-        if (container.nextSibling?.tagName === "BR") {
-          container.nextSibling.remove();
-        }
         svg.then((svgUrl) => (img.src = svgUrl));
         return {
           a,
