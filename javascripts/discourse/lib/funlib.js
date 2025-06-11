@@ -1722,8 +1722,25 @@ function funscriptOptions(width = 690) {
         halo: false,
       };
 }
+function handyMark(fun) {
+  if (fun.axes.length) return;
+  const stats = fun.toStats();
+  if (stats.MaxSpeed > 500) return;
+  const ats = fun.actions.map((a) => a.at).sort((a, b) => a - b);
+  const diffs = ats.map((e, i, a) => e - a[i - 1]).slice(1);
+  let isForHandy = diffs.every((e) => e > 30);
+  console.log({ ats, diffs, isForHandy });
+  if (isForHandy) {
+    Object.defineProperty(fun, "_isForHandy", {
+      value: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+}
 export {
   toSvgElement,
+  handyMark,
   funscriptOptions,
   exampleFunscript,
   exampleBlobUrl,
