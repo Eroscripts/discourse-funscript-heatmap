@@ -40,10 +40,8 @@ export function handyMark(fun: Funscript) {
   console.log({ ats, diffs, isForHandy });
 
   if (isForHandy) {
-    Object.defineProperty(fun, "_isForHandy", {
-      value: true,
-      configurable: true,
-      writable: true,
+    Object.assign(fun, {
+      _isForHandy: true,
     });
   }
 }
