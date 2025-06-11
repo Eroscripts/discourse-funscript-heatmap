@@ -1579,7 +1579,7 @@ function toSvgG(script, ops) {
       return this.titleStart + 3;
     },
     get textWidth() {
-      return this.statText(statCount);
+      return this.statText(useSeparateLine ? 0 : statCount) - this.headerText;
     },
   };
   if (
