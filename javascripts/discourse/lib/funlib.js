@@ -1663,8 +1663,8 @@ function toSvgG(script, ops) {
                   .reverse()
                   .map(
                     ([k, v], i) => `
-                    <text class="funsvg-stat-label-halo" x="${xx.statText(i)}" y="7" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
-                    <text class="funsvg-stat-value-halo" x="${xx.statText(i)}" y="17" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
+                    <text class="funsvg-stat-label-halo" x="${xx.statText(i)}" y="${yy.statLabelText}" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
+                    <text class="funsvg-stat-value-halo" x="${xx.statText(i)}" y="${yy.statValueText}" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
                   `,
                   )
                   .reverse().join(`
@@ -1677,8 +1677,8 @@ function toSvgG(script, ops) {
           .reverse()
           .map(
             ([k, v], i) => `
-            <text class="funsvg-stat-label" x="${xx.statText(i)}" y="7" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
-            <text class="funsvg-stat-value" x="${xx.statText(i)}" y="17" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
+            <text class="funsvg-stat-label" x="${xx.statText(i)}" y="${yy.statLabelText}" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
+            <text class="funsvg-stat-value" x="${xx.statText(i)}" y="${yy.statValueText}" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
           `,
           )
           .reverse().join(`
