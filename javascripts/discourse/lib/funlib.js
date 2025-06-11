@@ -1615,20 +1615,27 @@ function toSvgG(script, ops) {
   const round2 = (x) => +x.toFixed(2);
   const yy = {
     top: 0,
-    titleBottom: headerHeight + (useSeparateLine ? headerHeight : 0),
+    get headerExtra() {
+      return useSeparateLine ? headerHeight : 0;
+    },
+    get titleBottom() {
+      return headerHeight + this.headerExtra;
+    },
     get graphTop() {
       return this.titleBottom + headerSpacing;
     },
-    svgBottom: height + (useSeparateLine ? headerHeight : 0),
+    get svgBottom() {
+      return height + this.headerExtra;
+    },
     get axisText() {
       return (this.top + this.svgBottom) / 2 + 4;
     },
     headerText: headerHeight / 2 + 5,
     get statLabelText() {
-      return this.headerText - 8;
+      return this.headerText - 8 + this.headerExtra;
     },
     get statValueText() {
-      return this.headerText + 2;
+      return this.headerText + 2 + this.headerExtra;
     },
   };
   const bgGradientId = `funsvg-grad-${Math.random().toString(26).slice(2)}`;
