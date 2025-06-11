@@ -1,6 +1,11 @@
 // @ts-check
 import { apiInitializer } from "discourse/lib/api";
-import { exampleBlobUrl, Funscript, toSvgElement } from "../lib/funlib";
+import {
+  exampleBlobUrl,
+  Funscript,
+  handyMark,
+  toSvgElement,
+} from "../lib/funlib";
 import { makeSettingsEdits, userSettings } from "../lib/settings";
 import { clearExpiredCache, getCached } from "../lib/cache";
 
@@ -179,7 +184,9 @@ async function fetchFunscript(url: string): Promise<Funscript> {
   }
 
   const json = await response.json();
-  return new Funscript(json, { file: decodeURIComponent(filePath) });
+  let fun = new Funscript(json, { file: decodeURIComponent(filePath) });
+  handyMark(fun);
+  return fun;
 }
 
 async function generateSvgBlobUrl(

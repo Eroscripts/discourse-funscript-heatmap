@@ -1,4 +1,9 @@
-import { Funscript, exampleBlobUrl, toSvgElement } from "../lib/funlib";
+import {
+  Funscript,
+  exampleBlobUrl,
+  handyMark,
+  toSvgElement,
+} from "../lib/funlib";
 import { makeSettingsEdits, userSettings } from "../lib/settings";
 import { clearExpiredCache, getCached } from "../lib/cache";
 
@@ -146,7 +151,9 @@ async function fetchFunscript(url) {
     throw new Error("No file path found");
   }
   const json = await response.json();
-  return new Funscript(json, { file: decodeURIComponent(filePath) });
+  let fun = new Funscript(json, { file: decodeURIComponent(filePath) });
+  handyMark(fun);
+  return fun;
 }
 async function generateSvgBlobUrl(url, width = 690, funscript) {
   width = ~~width;
