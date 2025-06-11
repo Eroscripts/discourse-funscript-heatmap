@@ -1,10 +1,10 @@
 {
   "name": "discourse-funscript-heatmap",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Discourse theme component for funscript heatmap generation",
   "scripts": {
-    "build": "bun build src/*/*.ts --outdir=javascripts/discourse/ -e discourse --splitting",
-    "lint": "bunx prettier --write src/"
+    "build": "bun ./scripts/build.ts",
+    "lint": "bunx prettier --write ."
   },
   "dependencies": {
     "@eroscripts/funlib": "link:@eroscripts/funlib"

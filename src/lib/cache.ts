@@ -1,6 +1,6 @@
 const CACHE_NAME = "funscript-cache";
 const MAX_CACHE_AGE_HOURS = 8;
-const CACHE_HASH = "1";
+const CACHE_HASH = "2";
 
 export async function clearCache() {
   await window.caches.delete(CACHE_NAME);
@@ -18,7 +18,7 @@ export function clearExpiredCache() {
   if (!cacheAge || !cacheHash) return clearCache();
 
   let age = !cacheAge ? 0 : Date.now() - new Date(cacheAge).getTime();
-  if (age > MAX_CACHE_AGE_HOURS * 60 * 60 * 1000 || cacheHash !== CACHE_HASH) {
+  if (age > MAX_CACHE_AGE_HOURS * 3600e3 || cacheHash !== CACHE_HASH) {
     clearCache();
   }
 }

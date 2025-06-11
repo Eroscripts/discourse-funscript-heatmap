@@ -11,8 +11,8 @@
 !src/
 !src/**/
 
-!srcipts/
-!srcipts/**/
+!scripts/
+!scripts/**/
 
 !**/*.js
 !**/*.ts

@@ -1,12 +1,13 @@
-import {
-  clearCache
-} from "./cache";
+import { clearCache } from "./cache";
 
 // src/lib/settings.ts
 var user_settings_desc = {
   disable_heatmaps: "Disable funscript heatmap generation",
   solid_background: "Use solid background color in heatmaps",
-  cache_heatmaps: "Cache heatmaps for faster loading"
+  cache_heatmaps: "Cache heatmaps for faster loading",
+  merge_scripts: "Merge multi-axis funscripts",
+  use_max_extension:
+    "Use .max.funscript extension for multi-axis funscripts (renaming video to .max.mp4 is recommended)",
 };
 var userSettings = new Proxy(settings, {
   get(target, prop) {
@@ -21,7 +22,7 @@ var userSettings = new Proxy(settings, {
   set(target, prop, value) {
     localStorage.setItem(`heatmap-${prop}`, JSON.stringify(value));
     return true;
-  }
+  },
 });
 function makeSettingsEdits() {
   const container = document.createElement("div");
@@ -44,9 +45,4 @@ function makeSettingsEdits() {
   }
   return container;
 }
-export {
-  user_settings_desc,
-  userSettings,
-  makeSettingsEdits
-};
-
+export { user_settings_desc, userSettings, makeSettingsEdits };

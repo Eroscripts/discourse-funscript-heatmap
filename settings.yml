@@ -12,3 +12,13 @@ cache_heatmaps:
   type: bool
   default: true
   description: "Cache heatmaps for faster loading"
+
+merge_scripts:
+  type: bool
+  default: false
+  description: "Merge multi-axis funscripts"
+
+use_max_extension:
+  type: bool
+  default: true
+  description: "Use .max.funscript extension for multi-axis funscripts (renaming video to .max.mp4 is recommended)"

@@ -1,6 +1,6 @@
 // @ts-check
 import { apiInitializer } from "discourse/lib/api";
-import { Funscript } from "../lib/funlib";
+import { exampleBlobUrl, Funscript, toSvgElement } from "../lib/funlib";
 import { makeSettingsEdits, userSettings } from "../lib/settings";
 import { clearExpiredCache, getCached } from "../lib/cache";
 
@@ -27,45 +27,136 @@ export default apiInitializer((api) => {
         return;
       }
 
-      let links = [
-        ...cookedElement.querySelectorAll<HTMLAnchorElement>(
+      await new Promise(requestAnimationFrame);
+
+      const links = Array.from(
+        cookedElement.querySelectorAll<HTMLAnchorElement>(
           'a[href$=".funscript"]',
         ),
-      ];
+      ).map((a) => {
+        if (a.classList.contains("attachment"))
+          a.classList.remove("attachment");
 
-      await Promise.all(
-        links.map(async (a: HTMLAnchorElement) => {
-          if (a.classList.contains("attachment"))
-            a.classList.remove("attachment");
+        let p = a.parentElement!;
+        const width = ~~p.getBoundingClientRect().width;
 
-          let spanAContainer = document.createElement("a");
-          spanAContainer.setAttribute("href", a.getAttribute("href") || "#");
-          spanAContainer.className = "funscript-link-container";
-          spanAContainer.style.cssText = "display: block; line-height: 80%";
-          a.replaceWith(spanAContainer);
-          spanAContainer.append(a);
+        const url = a.href;
 
-          if (spanAContainer.nextSibling?.nodeType == 3) {
-            spanAContainer.append(spanAContainer.nextSibling);
-          }
+        const img = document.createElement("img");
+        img.className = "funscript-heatmap-image";
+        img.style.display = "block";
+        img.style.willChange = "opacity"; // improve draw perf
+        img.src = exampleBlobUrl(width);
 
-          const img = document.createElement("img");
-          img.style.display = "block";
-          img.style.willChange = "opacity"; // improve draw perf
-          spanAContainer.prepend(img);
+        const icon = document.createElement("img");
+        icon.src = "/images/emoji/twitter/bookmark_tabs.png?v=12";
+        icon.className = "emoji";
 
-          const svgUrl = await generateSvgBlobUrl(a.href);
-          img.src = svgUrl;
+        const container = document.createElement("a");
+        container.className = "funscript-link-container";
+        container.style.cssText = "display: block; line-height: 80%";
+        container.href = url;
 
-          await img.decode();
-          await new Promise(requestAnimationFrame);
+        const funscript = fetchFunscript(url);
+        const svg = funscript.then((f) => generateSvgBlobUrl(url, width, f));
 
-          let targetWidth = spanAContainer.getBoundingClientRect().width;
-          if (targetWidth > 700) {
-            img.src = await generateSvgBlobUrl(a.href, ~~targetWidth);
-          }
+        a.replaceWith(container);
+        container.append(img);
+        container.append(icon);
+        container.append(a);
+        if (container.nextSibling?.nodeType == 3) {
+          container.append(container.nextSibling);
+        }
+        if ((container.nextSibling as HTMLElement)?.tagName === "BR") {
+          (container.nextSibling as HTMLElement).remove();
+        }
+        svg.then((svgUrl) => (img.src = svgUrl));
+
+        return {
+          a,
+          img,
+          p,
+          url,
+          container,
+          funscript,
+          svg,
+          icon,
+          width,
+        };
+      });
+      if (links.length === 0) return;
+      if (!userSettings.merge_scripts) return;
+
+      const resolvedLinks = await Promise.all(
+        links.map(async (link) => {
+          let funscript = await link.funscript;
+          console.log("funscript", link.url, funscript.file);
+          return { ...link, funscript, file: funscript.file };
         }),
       );
+      console.log("resolvedLinks", resolvedLinks);
+
+      const merged = Funscript.mergeMultiAxis(
+        resolvedLinks.map((r) => r.funscript),
+      );
+      for (let m of merged) {
+        if (m.axes.length == 0) continue;
+        if (!m.file?.mergedFiles) continue;
+
+        if (userSettings.use_max_extension) {
+          m.file!.axisName = "max" as any;
+        }
+        let links = m.file!.mergedFiles!.map(
+          (f) => resolvedLinks.find((r) => r.file === f)!,
+        );
+        (m as any).version = "1.2";
+        (m.metadata as any).script_url = links[0]!.p
+          .closest(".topic-body")!
+          .querySelector<HTMLAnchorElement>("a.post-date")!
+          .href.replace(/\?.*/, "");
+
+        const url = links.map((l) => l.url).join("&");
+        const width = links[0]!.width;
+        const svg = await generateSvgBlobUrl(url, width, m);
+
+        const img = document.createElement("img");
+        img.className =
+          "funscript-heatmap-image funscript-heatmap-image-merged";
+        img.style.display = "block";
+        img.style.willChange = "opacity"; // improve draw perf
+        img.src = svg;
+
+        const icon = document.createElement("img");
+        icon.src = "/images/emoji/twitter/bookmark_tabs.png?v=12";
+        icon.style.filter = "hue-rotate(220deg)";
+        icon.className = "emoji";
+
+        const container = document.createElement("a");
+        container.className =
+          "funscript-link-container funscript-link-container-merged";
+        container.style.cssText = "display: block; line-height: 80%";
+        container.href = "#";
+        container.download = m.file!.filePath;
+        container.addEventListener("click", (e) => e.stopPropagation(), true);
+
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = "axes";
+        details.append(summary);
+
+        container.append(img);
+        container.append(icon);
+        container.append(m.file!.filePath);
+        links[0]!.container.replaceWith(container);
+        container.after(details);
+        details.append(...links.map((l) => l.container));
+
+        requestAnimationFrame(() => {
+          const text = m.toJsonText({ compress: true, maxPrecision: 0 });
+          const blob = new Blob([text], { type: "application/json" });
+          container.href = URL.createObjectURL(blob);
+        });
+      }
     },
     {
       id: "funscript-heatmap", // Unique ID for the decorator
@@ -96,6 +187,7 @@ async function generateSvgBlobUrl(
   width: number = 690,
   funscript?: Funscript,
 ): Promise<string> {
+  width = ~~width;
   console.time("readCache " + url);
   const svgUrl = url + ".svg" + (width === 690 ? "" : "?width=" + width);
 
@@ -107,10 +199,10 @@ async function generateSvgBlobUrl(
 
     // Use user setting if present, else theme setting
     const solidBackground = userSettings.solid_background;
-    const svg = funscript.toSvgElement({
+    const svg = toSvgElement([funscript], {
       width,
       ...(solidBackground
-        ? { solidTitleBackground: true, headerOpacity: 0.2, halo: false }
+        ? { solidHeaderBackground: true, headerOpacity: 0.2, halo: false }
         : {}),
     });
     console.timeEnd("toSvgElement " + svgUrl);
