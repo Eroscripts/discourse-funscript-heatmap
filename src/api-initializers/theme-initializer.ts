@@ -25,6 +25,30 @@ export default apiInitializer((api) => {
     }
   });
 
+  function createIcon(options: { rotate?: number } = {}) {
+    const icon = document.createElement("img");
+    icon.src = "/images/emoji/twitter/bookmark_tabs.png?v=12";
+    icon.className = "emoji";
+    icon.style.width = "1.2em";
+    icon.style.height = "1.2em";
+    if (options.rotate) icon.style.filter = `hue-rotate(${options.rotate}deg)`;
+    return icon;
+  }
+  function createHeatmapImage(options: {
+    width: number;
+    merged?: boolean;
+    src?: string;
+  }) {
+    const img = document.createElement("img");
+    img.className =
+      "funscript-heatmap-image" +
+      (options.merged ? " funscript-heatmap-image-merged" : "");
+    img.style.display = "block";
+    img.style.willChange = "opacity"; // improve draw perf
+    img.src = options.src ?? exampleBlobUrl(options.width);
+    return img;
+  }
+
   api.decorateCookedElement(
     async (cookedElement: HTMLElement) => {
       // Use user setting if present, else theme setting
@@ -43,19 +67,13 @@ export default apiInitializer((api) => {
           a.classList.remove("attachment");
 
         let p = a.parentElement!;
-        const width = ~~p.getBoundingClientRect().width;
+        const width = ~~a.closest(".cooked")!.getBoundingClientRect().width;
 
         const url = a.href;
 
-        const img = document.createElement("img");
-        img.className = "funscript-heatmap-image";
-        img.style.display = "block";
-        img.style.willChange = "opacity"; // improve draw perf
-        img.src = exampleBlobUrl(width);
+        const img = createHeatmapImage({ width });
 
-        const icon = document.createElement("img");
-        icon.src = "/images/emoji/twitter/bookmark_tabs.png?v=12";
-        icon.className = "emoji";
+        const icon = createIcon();
 
         const container = document.createElement("a");
         container.className = "funscript-link-container";
@@ -127,17 +145,9 @@ export default apiInitializer((api) => {
         const width = links[0]!.width;
         const svg = await generateSvgBlobUrl(url, width, m);
 
-        const img = document.createElement("img");
-        img.className =
-          "funscript-heatmap-image funscript-heatmap-image-merged";
-        img.style.display = "block";
-        img.style.willChange = "opacity"; // improve draw perf
-        img.src = svg;
+        const img = createHeatmapImage({ width, merged: true, src: svg });
 
-        const icon = document.createElement("img");
-        icon.src = "/images/emoji/twitter/bookmark_tabs.png?v=12";
-        icon.style.filter = "hue-rotate(220deg)";
-        icon.className = "emoji";
+        const icon = createIcon({ rotate: 220 });
 
         const container = document.createElement("a");
         container.className =
