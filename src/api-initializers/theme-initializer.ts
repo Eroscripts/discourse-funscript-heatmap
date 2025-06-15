@@ -48,6 +48,12 @@ export default apiInitializer((api) => {
     img.src = options.src ?? exampleBlobUrl(options.width);
     return img;
   }
+  function createTextSpan(text: string) {
+    const span = document.createElement("span");
+    span.style.color = "var(--primary)";
+    span.textContent = text;
+    return span;
+  }
 
   api.decorateCookedElement(
     async (cookedElement: HTMLElement) => {
@@ -84,11 +90,11 @@ export default apiInitializer((api) => {
         const svg = funscript.then((f) => generateSvgBlobUrl(url, width, f));
 
         a.replaceWith(container);
-        container.append(img);
-        container.append(icon);
-        container.append(a);
+        container.append(img, icon, a);
         if (container.nextSibling?.nodeType == 3) {
-          container.append(container.nextSibling);
+          const text = container.nextSibling;
+          text.remove();
+          container.append(createTextSpan(text.textContent!));
         }
         // if ((container.nextSibling as HTMLElement)?.tagName === "BR") {
         //   (container.nextSibling as HTMLElement).remove();
@@ -149,6 +155,12 @@ export default apiInitializer((api) => {
 
         const icon = createIcon({ rotate: 220 });
 
+        const a = document.createElement("a");
+        a.append(m.file!.filePath);
+        a.dataset.clicks = Math.max(
+          ...links.map((l) => +(l.a.dataset.clicks ?? 0)),
+        ).toString();
+
         const container = document.createElement("a");
         container.className =
           "funscript-link-container funscript-link-container-merged";
@@ -158,21 +170,21 @@ export default apiInitializer((api) => {
         container.addEventListener("click", (e) => e.stopPropagation(), true);
 
         const details = document.createElement("details");
+        details.style.float = "right";
         const summary = document.createElement("summary");
         summary.textContent = "axes";
-        details.append(summary);
 
-        container.append(img);
-        container.append(icon);
-        container.append(m.file!.filePath);
+        const size = createTextSpan(` (0.0 KB)`);
+
         links[0]!.container.replaceWith(container);
-        container.after(details);
-        details.append(...links.map((l) => l.container));
+        details.append(summary, ...links.map((l) => l.container));
+        container.append(img, icon, a, size, details);
 
         requestAnimationFrame(() => {
           const text = m.toJsonText({ compress: true, maxPrecision: 0 });
           const blob = new Blob([text], { type: "application/json" });
           container.href = URL.createObjectURL(blob);
+          size.textContent = ` (${(text.length / 1024).toFixed(1)} KB)`;
         });
       }
     },

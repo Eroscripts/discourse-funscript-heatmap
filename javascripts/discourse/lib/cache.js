@@ -2,7 +2,6 @@
 var CACHE_NAME = "funscript-cache";
 var MAX_CACHE_AGE_HOURS = 8;
 var CACHE_HASH = "2";
-var settings = {};
 async function clearCache() {
   await window.caches.delete(CACHE_NAME);
   localStorage.removeItem("funscript-cache-info");

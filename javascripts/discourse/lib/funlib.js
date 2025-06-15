@@ -1,84 +1,5 @@
-// src/lib/cache.ts
-var CACHE_NAME = "funscript-cache";
-var MAX_CACHE_AGE_HOURS = 8;
-var CACHE_HASH = "2";
-var settings = {};
-async function clearCache() {
-  await window.caches.delete(CACHE_NAME);
-  localStorage.removeItem("funscript-cache-info");
-}
-function clearExpiredCache() {
-  const cacheAge = localStorage.getItem("funscript-cache-age");
-  const cacheHash = localStorage.getItem("funscript-cache-hash");
-  if (!cacheAge)
-    localStorage.setItem("funscript-cache-age", Date.now().toString());
-  if (!cacheHash) localStorage.setItem("funscript-cache-hash", CACHE_HASH);
-  if (!cacheAge || !cacheHash) return clearCache();
-  let age = !cacheAge ? 0 : Date.now() - new Date(cacheAge).getTime();
-  if (age > MAX_CACHE_AGE_HOURS * 3600000 || cacheHash !== CACHE_HASH) {
-    clearCache();
-  }
-}
-async function getCached(url, create) {
-  const cache = await window.caches.open(CACHE_NAME);
-  const cachedResponse = await cache.match(url);
-  if (cachedResponse) return cachedResponse;
-  if (!create) return null;
-  const response = await create(url);
-  if (!response) return null;
-  if (!response.ok) {
-    console.error(`Failed to fetch: ${url}`);
-    return null;
-  }
-  await cache.put(url, response.clone());
-  return response;
-}
-
-// src/lib/settings.ts
-var user_settings_desc = {
-  disable_heatmaps: "Disable funscript heatmap generation",
-  solid_background: "Use solid background color in heatmaps",
-  cache_heatmaps: "Cache heatmaps for faster loading",
-  merge_scripts: "Merge multi-axis funscripts",
-  use_max_extension:
-    "Use .max.funscript extension for multi-axis funscripts (renaming video to .max.mp4 is recommended)",
-};
-var userSettings = new Proxy(settings, {
-  get(target, prop) {
-    let value = localStorage.getItem(`heatmap-${prop}`);
-    try {
-      return value ? JSON.parse(value) : settings[prop];
-    } catch (e) {
-      console.error(e);
-      return settings[prop];
-    }
-  },
-  set(target, prop, value) {
-    localStorage.setItem(`heatmap-${prop}`, JSON.stringify(value));
-    return true;
-  },
-});
-function makeSettingsEdits() {
-  const container = document.createElement("div");
-  container.id = "heatmap-user-settings";
-  container.style.marginTop = "2em";
-  let h3 = document.createElement("h3");
-  h3.textContent = "Heatmap User Settings";
-  for (const [key, text] of Object.entries(user_settings_desc)) {
-    let label = document.createElement("label");
-    let input = document.createElement("input");
-    input.type = "checkbox";
-    input.id = `user-${key}`;
-    label.append(input, text);
-    input.checked = userSettings[key];
-    input.addEventListener("change", (e) => {
-      userSettings[key] = e.target?.checked;
-      clearCache();
-    });
-    container.appendChild(label);
-  }
-  return container;
-}
+import { userSettings } from "./settings";
+import "./cache";
 
 // ../../projects/funlib/node_modules/colorizr/dist/index.mjs
 var __defProp = Object.defineProperty;
@@ -721,12 +642,12 @@ function orderByAxis(a, b) {
 }
 function formatJson(
   json,
-  { lineLength = 100, maxPrecision = 0, compress = false } = {},
+  { lineLength = 100, maxPrecision = 0, compress = true } = {},
 ) {
   function removeNewlines(s) {
     return s.replaceAll(/ *\n\s*/g, " ");
   }
-  const inArrayRegex = /(?<=\[)([^[\]]+)(?=\])/g;
+  const inArrayRegex = /(?<=\[)((?:[^[\]]|\[[^[\]]*\])*)(?=\])/g;
   json = json.replaceAll(
     /\{\s*"(at|time|startTime)":[^{}]+\}/g,
     removeNewlines,
@@ -1291,11 +1212,14 @@ class Funscript {
     if (actionsDuraction * 3 < metadataDuration) return actionsDuraction;
     return metadataDuration;
   }
-  toStats() {
+  toStats(options) {
     const MaxSpeed = actionsRequiredMaxSpeed(this.actions);
     const AvgSpeed = actionsAverageSpeed(this.actions);
+    const duration = options?.durationMs
+      ? options.durationMs / 1000
+      : this.actualDuration;
     return {
-      Duration: secondsToDuration(this.actualDuration),
+      Duration: secondsToDuration(duration),
       Actions: this.actions.filter((e) => e.isPeak).length,
       MaxSpeed: Math.round(MaxSpeed),
       AvgSpeed: Math.round(AvgSpeed),
@@ -1455,6 +1379,7 @@ var svgDefaultOptions = {
   headerSpacing: 0,
   axisWidth: 46,
   axisSpacing: 0,
+  durationMs: 0,
 };
 var isBrowser = typeof document !== "undefined";
 function textToSvgLength(text, font) {
@@ -1485,11 +1410,15 @@ function truncateTextWithEllipsis(text, maxWidth, font) {
   }
   return text + "…";
 }
-function toSvgLines(script, { width, height, w = 2, mergeLimit = 500 }) {
-  const duration = script.actualDuration;
+function toSvgLines(script, ops, ctx) {
+  const { lineWidth, mergeLimit, durationMs } = ops;
+  const { width, height } = ctx;
   function lineToStroke(a, b) {
-    const at = (a2) => (a2.at / 1000 / duration) * (width - 2 * w) + w;
-    const pos = (a2) => ((100 - a2.pos) * (height - 2 * w)) / 100 + w;
+    const at = (a2) =>
+      (a2.at / 1000 / (durationMs / 1000)) * (width - 2 * lineWidth) +
+      lineWidth;
+    const pos = (a2) =>
+      ((100 - a2.pos) * (height - 2 * lineWidth)) / 100 + lineWidth;
     return `M ${at(a)} ${pos(a)} L ${at(b)} ${pos(b)}`;
   }
   const lines = actionsToLines(script.actions);
@@ -1498,11 +1427,9 @@ function toSvgLines(script, { width, height, w = 2, mergeLimit = 500 }) {
   return lines.map(
     ([a, b, speed]) =>
       `<path d="${lineToStroke(a, b)}" stroke="${speedToHexCached(speed)}"></path>`,
-  ).join(`
-`);
+  );
 }
-function toSvgBackgroundGradient(script, linearGradientId) {
-  const durationMs = script.actualDuration * 1000;
+function toSvgBackgroundGradient(script, { durationMs }, linearGradientId) {
   const lines = actionsToLines(actionsToZigzag(script.actions)).flatMap((e) => {
     const [a, b, s] = e;
     const len = b.at - a.at;
@@ -1582,23 +1509,29 @@ function toSvgElement(scripts, ops) {
   const pieces = [];
   let y = SVG_PADDING;
   for (const s of scripts) {
+    const durationMs = fullOps.durationMs || s.actualDuration * 1000;
     pieces.push(
-      toSvgG(s, {
-        ...fullOps,
-        title: fullOps.title,
-        transform: `translate(${SVG_PADDING}, ${y})`,
-        onDoubleTitle: () => (y += fullOps.headerHeight),
-      }),
+      toSvgG(
+        s,
+        { ...fullOps, durationMs, title: fullOps.title },
+        {
+          transform: `translate(${SVG_PADDING}, ${y})`,
+          onDoubleTitle: () => (y += fullOps.headerHeight),
+        },
+      ),
     );
     y += fullOps.height + SPACING_BETWEEN_AXES;
     for (const a of s.axes) {
       pieces.push(
-        toSvgG(a, {
-          ...fullOps,
-          title: fullOps.title ?? "",
-          transform: `translate(${SVG_PADDING}, ${y})`,
-          onDoubleTitle: () => (y += fullOps.headerHeight),
-        }),
+        toSvgG(
+          a,
+          { ...fullOps, durationMs, title: fullOps.title ?? "" },
+          {
+            transform: `translate(${SVG_PADDING}, ${y})`,
+            isSecondaryAxis: true,
+            onDoubleTitle: () => (y += fullOps.headerHeight),
+          },
+        ),
       );
       y += fullOps.height + SPACING_BETWEEN_AXES;
     }
@@ -1607,13 +1540,13 @@ function toSvgElement(scripts, ops) {
   y -= SPACING_BETWEEN_FUNSCRIPTS;
   y += SVG_PADDING;
   return `<svg class="funsvg" width="${fullOps.width}" height="${y}" xmlns="http://www.w3.org/2000/svg"
-    font-size="14px" font-family="${fullOps.font}"
+    font-size="${fullOps.headerHeight * 0.8}px" font-family="${fullOps.font}"
   >
     ${pieces.join(`
 `)}
   </svg>`;
 }
-function toSvgG(script, ops) {
+function toSvgG(script, ops, ctx) {
   const {
     title: rawTitle,
     lineWidth: w,
@@ -1622,17 +1555,18 @@ function toSvgG(script, ops) {
     headerHeight,
     headerSpacing,
     height,
-    axisWidth,
-    axisSpacing,
     axisFont,
-    mergeLimit,
-    normalize = true,
+    normalize,
     width,
     solidHeaderBackground,
     titleEllipsis,
     titleSeparateLine,
     font,
+    durationMs,
   } = ops;
+  const { isSecondaryAxis } = ctx;
+  const axisWidth = ops.axisWidth;
+  const axisSpacing = axisWidth === 0 ? 0 : ops.axisSpacing;
   let title = "";
   if (rawTitle !== null) {
     title = typeof rawTitle === "function" ? rawTitle(script) : rawTitle;
@@ -1643,8 +1577,12 @@ function toSvgG(script, ops) {
       title = "";
     }
   }
-  const stats = script.toStats();
+  const stats = script.toStats({ durationMs });
+  if (isSecondaryAxis) delete stats.Duration;
   const statCount = Object.keys(stats).length;
+  const proportionalFontSize = headerHeight * 0.8;
+  const statLabelFontSize = headerHeight * 0.4;
+  const statValueFontSize = headerHeight * 0.72;
   let useSeparateLine = false;
   const xx = {
     axisStart: 0,
@@ -1652,7 +1590,7 @@ function toSvgG(script, ops) {
     titleStart: axisWidth + axisSpacing,
     svgEnd: width,
     graphWidth: width - axisWidth - axisSpacing,
-    statText: (i) => width - 7 - i * 46,
+    statText: (i) => width - (7 + i * 46) * (headerHeight / 20),
     get axisText() {
       return this.axisEnd / 2;
     },
@@ -1666,19 +1604,23 @@ function toSvgG(script, ops) {
   if (
     title &&
     titleSeparateLine !== false &&
-    textToSvgLength(title, `14px ${font}`) > xx.textWidth
+    textToSvgLength(title, `${proportionalFontSize}px ${font}`) > xx.textWidth
   ) {
     useSeparateLine = true;
   }
   if (
     title &&
     titleEllipsis &&
-    textToSvgLength(title, `14px ${font}`) > xx.textWidth
+    textToSvgLength(title, `${proportionalFontSize}px ${font}`) > xx.textWidth
   ) {
-    title = truncateTextWithEllipsis(title, xx.textWidth, `14px ${font}`);
+    title = truncateTextWithEllipsis(
+      title,
+      xx.textWidth,
+      `${proportionalFontSize}px ${font}`,
+    );
   }
   if (useSeparateLine) {
-    ops.onDoubleTitle();
+    ctx.onDoubleTitle();
   }
   const graphHeight = height - headerHeight - headerSpacing;
   script = script.clone();
@@ -1711,12 +1653,12 @@ function toSvgG(script, ops) {
     get axisText() {
       return (this.top + this.svgBottom) / 2 + 4 + this.headerExtra / 2;
     },
-    headerText: headerHeight / 2 + 5,
+    headerText: headerHeight * 0.75,
     get statLabelText() {
-      return this.headerText - 8 + this.headerExtra;
+      return headerHeight * 0.35 + this.headerExtra;
     },
     get statValueText() {
-      return this.headerText + 2 + this.headerExtra;
+      return headerHeight * 0.95 + this.headerExtra;
     },
   };
   const bgGradientId = `funsvg-grad-${Math.random().toString(26).slice(2)}`;
@@ -1724,56 +1666,51 @@ function toSvgG(script, ops) {
   const axisOpacity = round2(
     headerOpacity * Math.max(0.5, Math.min(1, stats.AvgSpeed / 100)),
   );
-  return `
-    <g transform="${ops.transform}">
-      
-      <g class="funsvg-bgs">
-        <defs>${toSvgBackgroundGradient(script, bgGradientId)}</defs>
-        <rect class="funsvg-bg-axis-drop" x="0" y="${yy.top}" width="${xx.axisEnd}" height="${yy.svgBottom - yy.top}" fill="#ccc" opacity="${round2(graphOpacity * 1.5)}"></rect>
-        <rect class="funsvg-bg-title-drop" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="#ccc" opacity="${round2(graphOpacity * 1.5)}"></rect>
-        <rect class="funsvg-bg-axis" x="0" y="${yy.top}" width="${xx.axisEnd}" height="${yy.svgBottom - yy.top}" fill="${axisColor}" opacity="${axisOpacity}"></rect>
-        <rect class="funsvg-bg-title" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="${solidHeaderBackground ? axisColor : `url(#${bgGradientId})`}" opacity="${round2(solidHeaderBackground ? axisOpacity * headerOpacity : headerOpacity)}"></rect>
-        <rect class="funsvg-bg-graph" x="${xx.titleStart}" width="${xx.graphWidth}" y="${yy.graphTop}" height="${graphHeight}" fill="url(#${bgGradientId})" opacity="${round2(graphOpacity)}"></rect>
-      </g>
-
-
-      <g class="funsvg-lines" transform="translate(${xx.titleStart}, ${yy.graphTop})" stroke-width="${w}" fill="none" stroke-linecap="round">
-        ${toSvgLines(script, { width: xx.graphWidth, height: graphHeight, w, mergeLimit })}
-      </g>
-      
-      <g class="funsvg-titles">
-        ${
-          !ops.halo
-            ? ""
-            : ` <g class="funsvg-titles-halo" stroke="white" opacity="0.5" paint-order="stroke fill markers" stroke-width="3" stroke-dasharray="none" stroke-linejoin="round" fill="transparent">
-                <text class="funsvg-title-halo" x="${xx.headerText}" y="${yy.headerText}"> ${textToSvgText(title)} </text>
-                ${Object.entries(stats)
-                  .reverse()
-                  .map(
-                    ([k, v], i) => `
-                    <text class="funsvg-stat-label-halo" x="${xx.statText(i)}" y="${yy.statLabelText}" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
-                    <text class="funsvg-stat-value-halo" x="${xx.statText(i)}" y="${yy.statValueText}" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
-                  `,
-                  )
-                  .reverse().join(`
-`)} 
-              </g>`
-        }
-        <text class="funsvg-axis" x="${xx.axisText}" y="${yy.axisText}" font-size="250%" font-family="${axisFont}" text-anchor="middle" dominant-baseline="middle"> ${axis} </text>
-        <text class="funsvg-title" x="${xx.headerText}" y="${yy.headerText}"> ${textToSvgText(title)} </text>
-        ${Object.entries(stats)
-          .reverse()
-          .map(
-            ([k, v], i) => `
-            <text class="funsvg-stat-label" x="${xx.statText(i)}" y="${yy.statLabelText}" font-weight="bold" font-size="50%" text-anchor="end"> ${k} </text>
-            <text class="funsvg-stat-value" x="${xx.statText(i)}" y="${yy.statValueText}" font-weight="bold" font-size="90%" text-anchor="end"> ${v} </text>
-          `,
-          )
-          .reverse().join(`
-`)} 
-      </g>
-    </g>
-    `;
+  return [
+    `<g transform="${ctx.transform}">`,
+    '  <g class="funsvg-bgs">',
+    `    <defs>${toSvgBackgroundGradient(script, { durationMs }, bgGradientId)}</defs>`,
+    axisWidth > 0 &&
+      `    <rect class="funsvg-bg-axis-drop" x="0" y="${yy.top}" width="${xx.axisEnd}" height="${yy.svgBottom - yy.top}" fill="#ccc" opacity="${round2(graphOpacity * 1.5)}"></rect>`,
+    `    <rect class="funsvg-bg-title-drop" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="#ccc" opacity="${round2(graphOpacity * 1.5)}"></rect>`,
+    axisWidth > 0 &&
+      `    <rect class="funsvg-bg-axis" x="0" y="${yy.top}" width="${xx.axisEnd}" height="${yy.svgBottom - yy.top}" fill="${axisColor}" opacity="${axisOpacity}"></rect>`,
+    `    <rect class="funsvg-bg-title" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="${solidHeaderBackground ? axisColor : `url(#${bgGradientId})`}" opacity="${round2(solidHeaderBackground ? axisOpacity * headerOpacity : headerOpacity)}"></rect>`,
+    `    <rect class="funsvg-bg-graph" x="${xx.titleStart}" width="${xx.graphWidth}" y="${yy.graphTop}" height="${graphHeight}" fill="url(#${bgGradientId})" opacity="${round2(graphOpacity)}"></rect>`,
+    "  </g>",
+    `  <g class="funsvg-lines" transform="translate(${xx.titleStart}, ${yy.graphTop})" stroke-width="${w}" fill="none" stroke-linecap="round">`,
+    ...toSvgLines(script, ops, {
+      width: xx.graphWidth,
+      height: graphHeight,
+    }).map((line) => `    ${line}`),
+    "  </g>",
+    '  <g class="funsvg-titles">',
+    ops.halo && [
+      `    <g class="funsvg-titles-halo" stroke="white" opacity="0.5" paint-order="stroke fill markers" stroke-width="3" stroke-dasharray="none" stroke-linejoin="round" fill="transparent">`,
+      `      <text class="funsvg-title-halo" x="${xx.headerText}" y="${yy.headerText}"> ${textToSvgText(title)} </text>`,
+      ...Object.entries(stats)
+        .reverse()
+        .map(([k, v], i) => [
+          `      <text class="funsvg-stat-label-halo" x="${xx.statText(i)}" y="${yy.statLabelText}" font-weight="bold" font-size="${statLabelFontSize}px" text-anchor="end"> ${k} </text>`,
+          `      <text class="funsvg-stat-value-halo" x="${xx.statText(i)}" y="${yy.statValueText}" font-weight="bold" font-size="${statValueFontSize}px" text-anchor="end"> ${v} </text>`,
+        ]),
+      "    </g>",
+    ],
+    axisWidth > 0 &&
+      `    <text class="funsvg-axis" x="${xx.axisText}" y="${yy.axisText}" font-size="${Math.max(12, axisWidth * 0.75)}px" font-family="${axisFont}" text-anchor="middle" dominant-baseline="middle"> ${axis} </text>`,
+    `    <text class="funsvg-title" x="${xx.headerText}" y="${yy.headerText}"> ${textToSvgText(title)} </text>`,
+    ...Object.entries(stats)
+      .reverse()
+      .map(([k, v], i) => [
+        `    <text class="funsvg-stat-label" x="${xx.statText(i)}" y="${yy.statLabelText}" font-weight="bold" font-size="${statLabelFontSize}px" text-anchor="end"> ${k} </text>`,
+        `    <text class="funsvg-stat-value" x="${xx.statText(i)}" y="${yy.statValueText}" font-weight="bold" font-size="${statValueFontSize}px" text-anchor="end"> ${v} </text>`,
+      ]),
+    "  </g>",
+    "</g>",
+  ]
+    .flat(4)
+    .filter((e) => !!e).join(`
+`);
 }
 function toSvgBlobUrl(script, ops) {
   const svg = toSvgElement(script, ops);

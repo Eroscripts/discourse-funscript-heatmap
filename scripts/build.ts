@@ -1,6 +1,6 @@
 export {};
 
-const userscript = true;
+const userscript = false;
 
 await Bun.$`bunx prettier --write src/`;
 
@@ -42,3 +42,14 @@ for (let { path } of buildOutput.outputs) {
 }
 
 await Bun.$`bunx prettier -w .`;
+
+// Copy theme-initializer.js to clipboard in userscript mode
+if (userscript) {
+  const { default: clipboardy } = await import("clipboardy");
+  clipboardy.writeSync(
+    await Bun.file(
+      "./javascripts/discourse/api-initializers/theme-initializer.js",
+    ).text(),
+  );
+  console.log("✅ Copied theme-initializer.js to clipboard!");
+}
