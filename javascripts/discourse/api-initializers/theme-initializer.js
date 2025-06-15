@@ -9,6 +9,7 @@ import { clearExpiredCache, getCached } from "../lib/cache";
 
 // src/api-initializers/theme-initializer.ts
 import { apiInitializer } from "discourse/lib/api";
+import ClickTrack from "discourse/lib/click-track";
 var theme_initializer_default = apiInitializer((api) => {
   clearExpiredCache();
   api.onPageChange((url) => {
@@ -125,21 +126,51 @@ var theme_initializer_default = apiInitializer((api) => {
         const img = createHeatmapImage({ width, merged: true, src: svg });
         const icon = createIcon({ rotate: 220 });
         const a = document.createElement("a");
+        a.className = "funscript-link-merged";
         a.append(m.file.filePath);
         a.dataset.clicks = Math.max(
           ...links2.map((l) => +(l.a.dataset.clicks ?? 0)),
         ).toString();
         const container = document.createElement("a");
-        container.className =
-          "funscript-link-container funscript-link-container-merged";
+        container.className = "funscript-link-container funscript-link-merged";
         container.style.cssText = "display: block; line-height: 80%";
         container.href = "#";
         container.download = m.file.filePath;
-        container.addEventListener("click", (e) => e.stopPropagation(), true);
+        container.addEventListener("click", (e) => {
+          const clickedLink = e.target.matches("a")
+            ? e.target
+            : e.target.closest("a");
+          const isMergedLink = clickedLink?.matches(".funscript-link-merged");
+          console.log({ isMergedLink, clickedLink }, e, e.target);
+          if (!isMergedLink) return;
+          e.stopPropagation();
+          links2.forEach((link) => {
+            const syntheticEvent = new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              view: window,
+              button: 0,
+              which: 1,
+              ctrlKey: true,
+            });
+            Object.defineProperty(syntheticEvent, "currentTarget", {
+              value: link.a,
+              writable: false,
+            });
+            ClickTrack.trackClick(syntheticEvent);
+          });
+        });
         const details = document.createElement("details");
         details.style.float = "right";
+        details.style.outline = "1px solid";
+        details.style.padding = "0";
         const summary = document.createElement("summary");
         summary.textContent = "axes";
+        summary.style.color = "var(--primary)";
+        summary.style.padding = ".25rem .75rem";
+        summary.addEventListener("click", (e) => {
+          e.stopPropagation();
+        });
         const size = createTextSpan(` (0.0 KB)`);
         links2[0].container.replaceWith(container);
         details.append(summary, ...links2.map((l) => l.container));

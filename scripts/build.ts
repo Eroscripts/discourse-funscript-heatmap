@@ -1,6 +1,6 @@
 export {};
 
-const userscript = false;
+const userscript = process.argv.includes("--userscript");
 
 await Bun.$`bunx prettier --write src/`;
 
@@ -31,6 +31,10 @@ for (let { path } of buildOutput.outputs) {
       .replace(
         'import { apiInitializer } from "discourse/lib/api";',
         'const apiInitializer = window.require("discourse/lib/plugin-api").withPluginApi',
+      )
+      .replace(
+        'import ClickTrack from "discourse/lib/click-track";',
+        "const ClickTrack = window.require('discourse/lib/click-track').default;",
       )
       .replace(
         "async function clearCache",
