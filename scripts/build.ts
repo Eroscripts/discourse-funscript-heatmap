@@ -1,8 +1,9 @@
 export {};
 
-const userscript = process.argv.includes("--userscript");
+await Bun.$`bun run generate`;
 
-await Bun.$`bunx prettier --write src/`;
+const userscript =
+  process.argv.includes("--userscript") || process.argv.includes("-u");
 
 let buildOutput = await Bun.build({
   entrypoints: [...new Bun.Glob("src/**/*.ts").scanSync()].filter(
@@ -36,10 +37,7 @@ for (let { path } of buildOutput.outputs) {
         'import ClickTrack from "discourse/lib/click-track";',
         "const ClickTrack = window.require('discourse/lib/click-track').default;",
       )
-      .replace(
-        "async function clearCache",
-        "var settings = {};async function clearCache",
-      )
+      .replace("\n\n", `var settings = {};\n`)
       .replace("userSettings.disable_heatmaps", "false");
   }
   await f.write(content);

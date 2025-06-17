@@ -1,53 +1,21 @@
-import {
-  Funscript,
-  exampleBlobUrl,
-  handyMark,
-  toSvgElement,
-} from "../lib/funlib";
-import { makeSettingsEdits, userSettings } from "../lib/settings";
 import { clearExpiredCache, getCached } from "../lib/cache";
+import { Funscript, exampleBlobUrl, toSvgElement } from "../lib/funlib";
+import {
+  USER_SETTINGS_UPDATED_EVENT,
+  injectSettings,
+  userSettings,
+} from "../lib/user_settings";
+import "../lib/generated";
 
 // src/api-initializers/theme-initializer.ts
 import { apiInitializer } from "discourse/lib/api";
 import ClickTrack from "discourse/lib/click-track";
 var theme_initializer_default = apiInitializer((api) => {
   clearExpiredCache();
-  api.onPageChange((url) => {
-    if (url.startsWith("/u/") && url.includes("/preferences")) {
-      setTimeout(() => {
-        if (document.getElementById("heatmap-user-settings")) return;
-        const preferences = document.querySelector(".user-preferences");
-        if (preferences) {
-          preferences.appendChild(makeSettingsEdits());
-        }
-      }, 500);
-    }
+  api.onPageChange(injectSettings);
+  document.addEventListener(USER_SETTINGS_UPDATED_EVENT, () => {
+    clearExpiredCache(true);
   });
-  function createIcon(options = {}) {
-    const icon = document.createElement("img");
-    icon.src = "/images/emoji/twitter/bookmark_tabs.png?v=12";
-    icon.className = "emoji";
-    icon.style.width = "1.2em";
-    icon.style.height = "1.2em";
-    if (options.rotate) icon.style.filter = `hue-rotate(${options.rotate}deg)`;
-    return icon;
-  }
-  function createHeatmapImage(options) {
-    const img = document.createElement("img");
-    img.className =
-      "funscript-heatmap-image" +
-      (options.merged ? " funscript-heatmap-image-merged" : "");
-    img.style.display = "block";
-    img.style.willChange = "opacity";
-    img.src = options.src ?? exampleBlobUrl(options.width);
-    return img;
-  }
-  function createTextSpan(text) {
-    const span = document.createElement("span");
-    span.style.color = "var(--primary)";
-    span.textContent = text;
-    return span;
-  }
   api.decorateCookedElement(
     async (cookedElement) => {
       if (userSettings.disable_heatmaps) {
@@ -189,7 +157,7 @@ var theme_initializer_default = apiInitializer((api) => {
   );
 });
 async function fetchFunscript(url) {
-  let response = await getCached(url, fetch);
+  let response = await getCached(url, "funscript-cache", fetch);
   if (!response) {
     throw new Error(`Failed to fetch funscript: ${url}`);
   }
@@ -200,15 +168,13 @@ async function fetchFunscript(url) {
     throw new Error("No file path found");
   }
   const json = await response.json();
-  let fun = new Funscript(json, { file: decodeURIComponent(filePath) });
-  handyMark(fun);
-  return fun;
+  return new Funscript(json, { file: decodeURIComponent(filePath) });
 }
 async function generateSvgBlobUrl(url, width = 690, funscript) {
   width = ~~width;
   console.time("readCache " + url);
   const svgUrl = url + ".svg" + (width === 690 ? "" : "?width=" + width);
-  let response = await getCached(svgUrl, async () => {
+  let response = await getCached(svgUrl, "funscript-svg-cache", async () => {
     console.time("fetchFunscript " + url);
     funscript ??= await fetchFunscript(url);
     console.timeEnd("fetchFunscript " + url);
@@ -231,5 +197,30 @@ async function generateSvgBlobUrl(url, width = 690, funscript) {
     console.error("Failed to generate SVG blob URL for " + url);
     return "";
   }
+}
+function createIcon(options = {}) {
+  const icon = document.createElement("img");
+  icon.src = "/images/emoji/twitter/bookmark_tabs.png?v=12";
+  icon.className = "emoji";
+  icon.style.width = "1.2em";
+  icon.style.height = "1.2em";
+  if (options.rotate) icon.style.filter = `hue-rotate(${options.rotate}deg)`;
+  return icon;
+}
+function createHeatmapImage(options) {
+  const img = document.createElement("img");
+  img.className =
+    "funscript-heatmap-image" +
+    (options.merged ? " funscript-heatmap-image-merged" : "");
+  img.style.display = "block";
+  img.style.willChange = "opacity";
+  img.src = options.src ?? exampleBlobUrl(options.width);
+  return img;
+}
+function createTextSpan(text) {
+  const span = document.createElement("span");
+  span.style.color = "var(--primary)";
+  span.textContent = text;
+  return span;
 }
 export { theme_initializer_default as default };

@@ -1,5 +1,5 @@
-import { userSettings } from "./settings";
-import "./cache";
+import { userSettings } from "./user_settings";
+import "./generated";
 
 // ../../projects/funlib/node_modules/colorizr/dist/index.mjs
 var __defProp = Object.defineProperty;
@@ -553,6 +553,17 @@ function compareWithOrder(a, b, order) {
   }
   return 0;
 }
+function makeNonEnumerable(target, key, value) {
+  return Object.defineProperty(target, key, {
+    value: value ?? target[key],
+    writable: true,
+    configurable: true,
+    enumerable: false,
+  });
+}
+function clone(obj, ...args) {
+  return new obj.constructor(obj, ...args);
+}
 
 // ../../projects/funlib/src/converter.ts
 function timeSpanToMs(timeSpan) {
@@ -744,215 +755,15 @@ function speedToHexCached(speed) {
   hexCache.set(speed, hex);
   return hex;
 }
-class TCodeAction extends Array {
-  static from(a) {
-    return new TCodeAction(...a);
-  }
-  constructor(...a) {
-    super();
-    this.push(...(Array.isArray(a[0]) ? a[0] : a));
-  }
-  toString(ops) {
-    const d = ops?.format ? "_" : "";
-    let mantissa = clamp2(this[1] / 100, 0, 1).toFixed(ops?.precision ?? 4);
-    if (mantissa.startsWith("1")) mantissa = "0.999999999";
-    mantissa = mantissa.slice(2).slice(0, ops?.precision ?? 4);
-    if (d) mantissa = mantissa.padStart(ops?.precision ?? 4, "_");
-    else mantissa = mantissa.replace(/(?<=.)0+$/, "");
-    const target = this[3] ?? 0;
-    const speedText = clamp2(target, 0, 9999).toFixed(0);
-    const intervalText = clamp2(target, 0, 99999).toFixed(0);
-    const postfix =
-      this[2] === "I"
-        ? `${d}I${d}${intervalText.padStart(d ? 3 : 0, "_")}`
-        : this[2] === "S"
-          ? `${d}S${d}${speedText.padStart(d ? 3 : 0, "_")}`
-          : "";
-    return `${this[0]}${d}${mantissa}${postfix}`;
-  }
-}
-
-class TCodeList extends Array {
-  static from(arrayLike) {
-    return new TCodeList(...arrayLike.map((e) => new TCodeAction(e)));
-  }
-  toString(ops) {
-    if (!this.length) return "";
-    return (
-      this.map((e) => e.toString(ops)).join(" ") +
-      `
-`
-    );
-  }
-}
-
-// ../../projects/funlib/src/manipulations.ts
-function actionsToLines(actions) {
-  return actions
-    .map((e, i, a) => {
-      const p = a[i - 1];
-      if (!p) return null;
-      const speed = speedBetween(p, e);
-      return Object.assign([p, e, Math.abs(speed)], {
-        speed,
-        absSpeed: Math.abs(speed),
-        speedSign: Math.sign(speed),
-        dat: e.at - p.at,
-        atStart: p.at,
-        atEnd: e.at,
-      });
-    })
-    .slice(1)
-    .filter((e) => e[0].at < e[1].at);
-}
-function actionsToZigzag(actions) {
-  return FunAction.cloneList(
-    actions.filter((e) => e.isPeak),
-    {
-      parent: true,
-    },
-  );
-}
-function mergeLinesSpeed(lines, mergeLimit) {
-  if (!mergeLimit) return lines;
-  let j = 0;
-  for (let i = 0; i < lines.length - 1; i = j + 1) {
-    for (j = i; j < lines.length - 1; j++) {
-      if (lines[i].speedSign !== lines[j + 1].speedSign) break;
-    }
-    const f = lines.slice(i, j + 1);
-    if (i === j) continue;
-    if (listToSum(f.map((e) => e.dat)) > mergeLimit) continue;
-    const avgSpeed =
-      listToSum(f.map((e) => e.absSpeed * e.dat)) /
-      listToSum(f.map((e) => e.dat));
-    f.map((e) => (e[2] = avgSpeed));
-  }
-  return lines;
-}
-function actionsAverageSpeed(actions) {
-  const zigzag = actionsToZigzag(actions);
-  const fast = zigzag.filter((e) => Math.abs(e.speedTo) > 30);
-  return (
-    listToSum(fast.map((e) => Math.abs(e.speedTo) * e.datNext)) /
-    (listToSum(fast.map((e) => e.datNext)) || 1)
-  );
-}
-function actionsRequiredMaxSpeed(actions) {
-  if (actions.length < 2) return 0;
-  const requiredSpeeds = [];
-  let nextPeak = actions[0];
-  for (const a of actions) {
-    if (nextPeak === a) {
-      nextPeak = nextPeak.nextAction;
-      while (nextPeak && !nextPeak.isPeak) nextPeak = nextPeak.nextAction;
-    }
-    if (!nextPeak) break;
-    requiredSpeeds.push([
-      Math.abs(speedBetween(a, nextPeak)),
-      nextPeak.at - a.at,
-    ]);
-  }
-  const sorted = requiredSpeeds.sort((a, b) => a[0] - b[0]).reverse();
-  return sorted.find((e) => e[1] >= 50)?.[0] ?? 0;
-}
 
 // ../../projects/funlib/src/index.ts
 class FunAction {
-  static linkList(list, extras) {
-    if (extras?.parent === true) extras.parent = list[0]?.parent;
-    for (let i = 1; i < list.length; i++) {
-      list[i].#prevAction = list[i - 1];
-      list[i - 1].#nextAction = list[i];
-      if (extras?.parent) list[i].#parent = extras.parent;
-    }
-    return list;
-  }
   at = 0;
   pos = 0;
-  #parent;
-  #prevAction;
-  #nextAction;
-  constructor(action, extras) {
+  constructor(action) {
     Object.assign(this, action);
-    this.#parent =
-      extras && "parent" in extras
-        ? extras.parent
-        : action instanceof FunAction
-          ? action.#parent
-          : undefined;
-  }
-  get nextAction() {
-    return this.#nextAction;
-  }
-  get prevAction() {
-    return this.#prevAction;
-  }
-  get parent() {
-    return this.#parent;
-  }
-  get speedTo() {
-    return speedBetween(this.#prevAction, this);
-  }
-  get speedFrom() {
-    return speedBetween(this, this.#nextAction);
-  }
-  get isPeak() {
-    const { speedTo, speedFrom } = this;
-    if (!this.#prevAction && !this.#nextAction) return 1;
-    if (!this.#prevAction) return speedFrom < 0 ? 1 : 1;
-    if (!this.#nextAction) return speedTo > 0 ? -1 : -1;
-    if (Math.sign(speedTo) === Math.sign(speedFrom)) return 0;
-    if (speedTo > speedFrom) return 1;
-    if (speedTo < speedFrom) return -1;
-    return 0;
-  }
-  get datNext() {
-    if (!this.#nextAction) return 0;
-    return this.#nextAction.at - this.at;
-  }
-  get datPrev() {
-    if (!this.#prevAction) return 0;
-    return this.at - this.#prevAction.at;
-  }
-  get dposNext() {
-    if (!this.#nextAction) return 0;
-    return this.#nextAction.pos - this.pos;
-  }
-  get dposPrev() {
-    if (!this.#prevAction) return 0;
-    return this.pos - this.#prevAction.pos;
-  }
-  clerpAt(at) {
-    if (at === this.at) return this.pos;
-    if (at < this.at) {
-      if (!this.#prevAction) return this.pos;
-      return clamplerp(
-        at,
-        this.#prevAction.at,
-        this.at,
-        this.#prevAction.pos,
-        this.pos,
-      );
-    }
-    if (at > this.at) {
-      if (!this.#nextAction) return this.pos;
-      return clamplerp(
-        at,
-        this.at,
-        this.#nextAction.at,
-        this.pos,
-        this.#nextAction.pos,
-      );
-    }
-    return this.pos;
   }
   static jsonOrder = { at: undefined, pos: undefined };
-  static cloneList(list, extras) {
-    const parent = extras?.parent === true ? list[0]?.parent : extras?.parent;
-    const newList = list.map((e) => new FunAction(e, { parent }));
-    return FunAction.linkList(newList, extras);
-  }
   toJSON() {
     return orderTrimJson(
       {
@@ -965,7 +776,7 @@ class FunAction {
     );
   }
   clone() {
-    return new FunAction(this);
+    return clone(this);
   }
 }
 
@@ -999,7 +810,7 @@ class FunChapter {
     });
   }
   clone() {
-    return new FunChapter(this);
+    return clone(this);
   }
 }
 
@@ -1025,15 +836,18 @@ class FunBookmark {
 }
 
 class FunMetadata {
+  static Bookmark = FunBookmark;
+  static Chapter = FunChapter;
   duration = 0;
   chapters = [];
   bookmarks = [];
   constructor(metadata, parent) {
     Object.assign(this, metadata);
+    const base = this.constructor;
     if (metadata?.bookmarks)
-      this.bookmarks = metadata.bookmarks.map((e) => new FunBookmark(e));
+      this.bookmarks = metadata.bookmarks.map((e) => new base.Bookmark(e));
     if (metadata?.chapters)
-      this.chapters = metadata.chapters.map((e) => new FunChapter(e));
+      this.chapters = metadata.chapters.map((e) => new base.Chapter(e));
     if (metadata?.duration) this.duration = metadata.duration;
     if (this.duration > 3600) {
       const actionsDuration = parent?.actionsDuraction;
@@ -1076,7 +890,7 @@ class FunMetadata {
   }
   clone() {
     const clonedData = JSON.parse(JSON.stringify(this.toJSON()));
-    return new FunMetadata(clonedData);
+    return clone(this, clonedData);
   }
 }
 
@@ -1086,6 +900,7 @@ class FunscriptFile {
   dir = "";
   mergedFiles;
   constructor(filePath) {
+    if (filePath instanceof FunscriptFile) filePath = filePath.filePath;
     let parts = filePath.split(".");
     if (parts.at(-1) === "funscript") parts.pop();
     const axisLike = parts.at(-1);
@@ -1104,17 +919,23 @@ class FunscriptFile {
     return `${this.dir}${this.title}${this.axisName ? `.${this.axisName}` : ""}.funscript`;
   }
   clone() {
-    return new FunscriptFile(this.filePath);
+    return clone(this, this.filePath);
   }
 }
 
 class Funscript {
+  static Action = FunAction;
+  static Chapter = FunChapter;
+  static Bookmark = FunBookmark;
+  static Metadata = FunMetadata;
+  static File = FunscriptFile;
+  static AxisScript = null;
   static mergeMultiAxis(scripts) {
     const multiaxisScripts = scripts.filter((e) => e.axes.length);
     const singleaxisScripts = scripts.filter((e) => !e.axes.length);
     const groups = Object.groupBy(
       singleaxisScripts,
-      (e) => e.#file?.title ?? "[unnamed]",
+      (e) => e.file?.title ?? "[unnamed]",
     );
     const mergedSingleaxisScripts = Object.entries(groups).flatMap(
       ([_title, scripts2]) => {
@@ -1126,14 +947,17 @@ class Funscript {
         if (axes.length === allScripts.length) {
           const L0 = allScripts.find((e) => e.id === "L0");
           if (!L0)
-            throw new Error("Funscript.mergeMultiAxis: L0 is not defined");
-          const base = L0.clone();
-          base.axes = allScripts
-            .filter((e) => e.id !== "L0")
-            .map((e) => new AxisScript(e, { parent: base }));
-          if (base.#file)
-            base.#file.mergedFiles = allScripts.map((e) => e.#file);
-          return base;
+            throw new Error(
+              "Funscript.mergeMultiAxis: trying to merge multi-axis scripts without L0",
+            );
+          const result = new this(L0, {
+            axes: allScripts.filter((e) => e.id !== "L0"),
+          });
+          if (L0.file) {
+            result.file = L0.file.clone();
+            result.file.mergedFiles = allScripts.map((e) => e.file);
+          }
+          return result;
         }
         throw new Error(
           "Funscript.mergeMultiAxis: multi-axis scripts are not implemented yet",
@@ -1145,47 +969,42 @@ class Funscript {
   id = "L0";
   actions = [];
   axes = [];
-  metadata = new FunMetadata();
-  #parent;
-  #file;
+  metadata;
+  parent;
+  file;
   constructor(funscript, extras) {
     Object.assign(this, funscript);
-    if (extras?.file) this.#file = new FunscriptFile(extras.file);
+    const base = this.constructor;
+    this.metadata = new base.Metadata();
+    if (extras?.file) this.file = new base.File(extras.file);
     else if (funscript instanceof Funscript)
-      this.#file = funscript.#file?.clone();
+      this.file = funscript.file?.clone();
     this.id =
       extras?.id ??
       funscript?.id ??
-      this.#file?.id ??
+      this.file?.id ??
       (this instanceof AxisScript ? null : "L0");
     if (funscript?.actions) {
-      this.actions = FunAction.cloneList(funscript.actions, { parent: this });
+      this.actions = funscript.actions.map((e) => new base.Action(e));
     }
     if (funscript?.metadata !== undefined)
-      this.metadata = new FunMetadata(funscript.metadata, this);
+      this.metadata = new base.Metadata(funscript.metadata, this);
     else if (funscript instanceof Funscript)
-      this.#file = funscript.#file?.clone();
+      this.file = funscript.file?.clone();
     if (extras?.axes) {
       if (funscript?.axes?.length)
         throw new Error("FunFunscript: both axes and axes are defined");
       this.axes = extras.axes
-        .map((e) => new AxisScript(e, { parent: this }))
+        .map((e) => new base.AxisScript(e, { parent: this }))
         .sort(orderByAxis);
     } else if (funscript?.axes) {
       this.axes = funscript.axes
-        .map((e) => new AxisScript(e, { parent: this }))
+        .map((e) => new base.AxisScript(e, { parent: this }))
         .sort(orderByAxis);
     }
-    if (extras?.parent) this.#parent = extras.parent;
-  }
-  get parent() {
-    return this.#parent;
-  }
-  set parent(v) {
-    this.#parent = v;
-  }
-  get file() {
-    return this.#file;
+    if (extras?.parent) this.parent = extras.parent;
+    makeNonEnumerable(this, "parent");
+    makeNonEnumerable(this, "file");
   }
   get duration() {
     if (this.metadata.duration) return this.metadata.duration;
@@ -1212,19 +1031,6 @@ class Funscript {
     if (actionsDuraction * 3 < metadataDuration) return actionsDuraction;
     return metadataDuration;
   }
-  toStats(options) {
-    const MaxSpeed = actionsRequiredMaxSpeed(this.actions);
-    const AvgSpeed = actionsAverageSpeed(this.actions);
-    const duration = options?.durationMs
-      ? options.durationMs / 1000
-      : this.actualDuration;
-    return {
-      Duration: secondsToDuration(duration),
-      Actions: this.actions.filter((e) => e.isPeak).length,
-      MaxSpeed: Math.round(MaxSpeed),
-      AvgSpeed: Math.round(AvgSpeed),
-    };
-  }
   normalize() {
     this.axes.forEach((e) => e.normalize());
     this.actions.forEach((e) => {
@@ -1245,68 +1051,15 @@ class Funscript {
         this.actions.unshift(lastNegative);
       }
     }
-    FunAction.linkList(this.actions, { parent: this });
     const duration = Math.ceil(this.actualDuration);
     this.metadata.duration = duration;
     this.axes.forEach((e) => (e.metadata.duration = duration));
     return this;
   }
-  getAxes() {
-    return [this, ...this.axes].sort(orderByAxis);
-  }
-  #searchActionIndex = -1;
-  getActionAfter(at) {
-    const isTarget = (e) =>
-      e &&
-      (!e.nextAction || e.at > at) &&
-      (!e.prevAction || e.prevAction.at <= at);
-    const AROUND_LOOKUP = 5;
-    for (let di = -AROUND_LOOKUP; di <= AROUND_LOOKUP; di++) {
-      const index = this.#searchActionIndex + di;
-      if (!this.actions[index]) continue;
-      if (isTarget(this.actions[index])) {
-        this.#searchActionIndex = index;
-        break;
-      }
-    }
-    if (!isTarget(this.actions[this.#searchActionIndex])) {
-      this.#searchActionIndex = this.actions.findIndex(isTarget);
-    }
-    return this.actions[this.#searchActionIndex];
-  }
-  getPosAt(at) {
-    const action = this.getActionAfter(at);
-    if (!action) return 50;
-    return action.clerpAt(at);
-  }
-  getAxesPosAt(at) {
-    return Object.fromEntries(
-      this.getAxes().map((e) => [e.id, e.getPosAt(at)]),
-    );
-  }
-  getTCodeAt(at) {
-    const apos = this.getAxesPosAt(at);
-    const tcode = Object.entries(apos).map(([axis, pos]) => [axis, pos]);
-    return TCodeList.from(tcode);
-  }
-  getTCodeFrom(at, since) {
-    at = ~~at;
-    since = since && ~~since;
-    const tcode = [];
-    for (const a of this.getAxes()) {
-      const nextAction = a.getActionAfter(at);
-      if (!nextAction) continue;
-      if (since === undefined) {
-        if (nextAction.at <= at) tcode.push([a.id, nextAction.pos]);
-        else tcode.push([a.id, nextAction.pos, "I", nextAction.at - at]);
-        continue;
-      }
-      if (nextAction.at <= at) continue;
-      const prevAt = nextAction.prevAction?.at ?? 0;
-      if (prevAt <= since) continue;
-      tcode.push([a.id, nextAction.pos, "I", nextAction.at - at]);
-    }
-    return TCodeList.from(tcode);
+  getAxes(ids) {
+    const allAxes = [this, ...this.axes].sort(orderByAxis);
+    if (!ids) return allAxes;
+    return allAxes.filter((axis) => ids.includes(axis.id));
   }
   static emptyJson = {
     axes: [],
@@ -1342,9 +1095,9 @@ class Funscript {
     return formatJson(JSON.stringify(this, null, 2), options ?? {});
   }
   clone() {
-    const clone = new Funscript(this);
-    clone.#file = this.#file?.clone();
-    return clone;
+    const cloned = clone(this);
+    cloned.file = this.file?.clone();
+    return cloned;
   }
 }
 
@@ -1354,6 +1107,126 @@ class AxisScript extends Funscript {
     if (!this.id) throw new Error("AxisScript: axis is not defined");
     if (!this.parent) throw new Error("AxisScript: parent is not defined");
   }
+  clone() {
+    return this.parent.clone().axes.find((e) => e.id === this.id);
+  }
+}
+Funscript.AxisScript = AxisScript;
+
+// ../../projects/funlib/src/manipulations.ts
+function isPeak(actions, index) {
+  const action = actions[index];
+  const prevAction = actions[index - 1];
+  const nextAction = actions[index + 1];
+  if (!prevAction && !nextAction) return 1;
+  if (!prevAction) {
+    const speedFrom2 = speedBetween(action, nextAction);
+    return speedFrom2 < 0 ? 1 : 1;
+  }
+  if (!nextAction) {
+    const speedTo2 = speedBetween(prevAction, action);
+    return speedTo2 > 0 ? -1 : -1;
+  }
+  const speedTo = speedBetween(prevAction, action);
+  const speedFrom = speedBetween(action, nextAction);
+  if (Math.sign(speedTo) === Math.sign(speedFrom)) return 0;
+  if (speedTo > speedFrom) return 1;
+  if (speedTo < speedFrom) return -1;
+  return 0;
+}
+function actionsToLines(actions) {
+  return actions
+    .map((e, i, a) => {
+      const p = a[i - 1];
+      if (!p) return null;
+      const speed = speedBetween(p, e);
+      return Object.assign([p, e, Math.abs(speed)], {
+        speed,
+        absSpeed: Math.abs(speed),
+        speedSign: Math.sign(speed),
+        dat: e.at - p.at,
+        atStart: p.at,
+        atEnd: e.at,
+      });
+    })
+    .slice(1)
+    .filter((e) => e[0].at < e[1].at);
+}
+function actionsToZigzag(actions) {
+  return actions.filter((_, i) => isPeak(actions, i)).map((e) => e.clone());
+}
+function mergeLinesSpeed(lines, mergeLimit) {
+  if (!mergeLimit) return lines;
+  let j = 0;
+  for (let i = 0; i < lines.length - 1; i = j + 1) {
+    for (j = i; j < lines.length - 1; j++) {
+      if (lines[i].speedSign !== lines[j + 1].speedSign) break;
+    }
+    const f = lines.slice(i, j + 1);
+    if (i === j) continue;
+    if (listToSum(f.map((e) => e.dat)) > mergeLimit) continue;
+    const avgSpeed =
+      listToSum(f.map((e) => e.absSpeed * e.dat)) /
+      listToSum(f.map((e) => e.dat));
+    f.map((e) => (e[2] = avgSpeed));
+  }
+  return lines;
+}
+function actionsAverageSpeed(actions) {
+  const zigzag = actionsToZigzag(actions);
+  const fast = zigzag.filter((e, i, arr) => {
+    const prev = arr[i - 1];
+    return prev && Math.abs(speedBetween(prev, e)) > 30;
+  });
+  return (
+    listToSum(
+      fast.map((e, i, arr) => {
+        const prev = arr[i - 1];
+        const next = arr[i + 1];
+        const speedTo = prev ? Math.abs(speedBetween(prev, e)) : 0;
+        const datNext = next ? next.at - e.at : 0;
+        return speedTo * datNext;
+      }),
+    ) /
+    (listToSum(
+      fast.map((e, i, arr) => {
+        const next = arr[i + 1];
+        return next ? next.at - e.at : 0;
+      }),
+    ) || 1)
+  );
+}
+function actionsRequiredMaxSpeed(actions) {
+  if (actions.length < 2) return 0;
+  const requiredSpeeds = [];
+  let nextPeakIndex = 0;
+  for (let i = 0; i < actions.length; i++) {
+    const a = actions[i];
+    if (nextPeakIndex === i) {
+      nextPeakIndex = actions.findIndex(
+        (action, idx) => idx > i && isPeak(actions, idx) !== 0,
+      );
+      if (nextPeakIndex === -1) break;
+    }
+    const nextPeak = actions[nextPeakIndex];
+    if (!nextPeak) break;
+    requiredSpeeds.push([
+      Math.abs(speedBetween(a, nextPeak)),
+      nextPeak.at - a.at,
+    ]);
+  }
+  const sorted = requiredSpeeds.sort((a, b) => a[0] - b[0]).reverse();
+  return sorted.find((e) => e[1] >= 50)?.[0] ?? 0;
+}
+function toStats(actions, options) {
+  const MaxSpeed = actionsRequiredMaxSpeed(actions);
+  const AvgSpeed = actionsAverageSpeed(actions);
+  return {
+    Duration: secondsToDuration(options.durationSeconds),
+    Actions: actions.filter((_, i) => isPeak(actions, i) !== 0).length,
+    MaxSpeed: Math.round(MaxSpeed),
+    AvgSpeed: Math.round(AvgSpeed),
+  };
 }
 
 // ../../projects/funlib/src/rendering/svg.ts
@@ -1413,12 +1286,12 @@ function truncateTextWithEllipsis(text, maxWidth, font) {
 function toSvgLines(script, ops, ctx) {
   const { lineWidth, mergeLimit, durationMs } = ops;
   const { width, height } = ctx;
+  const round2 = (x) => +x.toFixed(2);
   function lineToStroke(a, b) {
     const at = (a2) =>
-      (a2.at / 1000 / (durationMs / 1000)) * (width - 2 * lineWidth) +
-      lineWidth;
+      round2((a2.at / durationMs) * (width - 2 * lineWidth) + lineWidth);
     const pos = (a2) =>
-      ((100 - a2.pos) * (height - 2 * lineWidth)) / 100 + lineWidth;
+      round2(((100 - a2.pos) * (height - 2 * lineWidth)) / 100 + lineWidth);
     return `M ${at(a)} ${pos(a)} L ${at(b)} ${pos(b)}`;
   }
   const lines = actionsToLines(script.actions);
@@ -1430,6 +1303,7 @@ function toSvgLines(script, ops, ctx) {
   );
 }
 function toSvgBackgroundGradient(script, { durationMs }, linearGradientId) {
+  const round2 = (x) => +x.toFixed(2);
   const lines = actionsToLines(actionsToZigzag(script.actions)).flatMap((e) => {
     const [a, b, s] = e;
     const len = b.at - a.at;
@@ -1497,7 +1371,7 @@ function toSvgBackgroundGradient(script, { durationMs }, linearGradientId) {
       <linearGradient id="${linearGradientId}">
         ${stops.map(
           (s) =>
-            `<stop offset="${Math.max(0, Math.min(1, s.at / durationMs))}" stop-color="${speedToHexCached(s.speed)}"${s.speed >= 100 ? "" : ` stop-opacity="${s.speed / 100}"`}></stop>`,
+            `<stop offset="${round2(Math.max(0, Math.min(1, s.at / durationMs)))}" stop-color="${speedToHexCached(s.speed)}"${s.speed >= 100 ? "" : ` stop-opacity="${round2(s.speed / 100)}"`}></stop>`,
         ).join(`
           `)}
       </linearGradient>`;
@@ -1506,9 +1380,11 @@ function toSvgElement(scripts, ops) {
   scripts = Array.isArray(scripts) ? scripts : [scripts];
   const fullOps = { ...svgDefaultOptions, ...ops };
   fullOps.width -= SVG_PADDING * 2;
+  const round2 = (x) => +x.toFixed(2);
   const pieces = [];
   let y = SVG_PADDING;
-  for (const s of scripts) {
+  for (let s of scripts) {
+    if (fullOps.normalize) s = s.clone().normalize();
     const durationMs = fullOps.durationMs || s.actualDuration * 1000;
     pieces.push(
       toSvgG(
@@ -1539,8 +1415,8 @@ function toSvgElement(scripts, ops) {
   }
   y -= SPACING_BETWEEN_FUNSCRIPTS;
   y += SVG_PADDING;
-  return `<svg class="funsvg" width="${fullOps.width}" height="${y}" xmlns="http://www.w3.org/2000/svg"
-    font-size="${fullOps.headerHeight * 0.8}px" font-family="${fullOps.font}"
+  return `<svg class="funsvg" width="${round2(fullOps.width)}" height="${round2(y)}" xmlns="http://www.w3.org/2000/svg"
+    font-size="${round2(fullOps.headerHeight * 0.8)}px" font-family="${fullOps.font}"
   >
     ${pieces.join(`
 `)}
@@ -1556,7 +1432,6 @@ function toSvgG(script, ops, ctx) {
     headerSpacing,
     height,
     axisFont,
-    normalize,
     width,
     solidHeaderBackground,
     titleEllipsis,
@@ -1577,12 +1452,13 @@ function toSvgG(script, ops, ctx) {
       title = "";
     }
   }
-  const stats = script.toStats({ durationMs });
+  const stats = toStats(script.actions, { durationSeconds: durationMs / 1000 });
   if (isSecondaryAxis) delete stats.Duration;
   const statCount = Object.keys(stats).length;
-  const proportionalFontSize = headerHeight * 0.8;
-  const statLabelFontSize = headerHeight * 0.4;
-  const statValueFontSize = headerHeight * 0.72;
+  const round2 = (x) => +x.toFixed(2);
+  const proportionalFontSize = round2(headerHeight * 0.8);
+  const statLabelFontSize = round2(headerHeight * 0.4);
+  const statValueFontSize = round2(headerHeight * 0.72);
   let useSeparateLine = false;
   const xx = {
     axisStart: 0,
@@ -1590,12 +1466,12 @@ function toSvgG(script, ops, ctx) {
     titleStart: axisWidth + axisSpacing,
     svgEnd: width,
     graphWidth: width - axisWidth - axisSpacing,
-    statText: (i) => width - (7 + i * 46) * (headerHeight / 20),
+    statText: (i) => round2(width - (7 + i * 46) * (headerHeight / 20)),
     get axisText() {
-      return this.axisEnd / 2;
+      return round2(this.axisEnd / 2);
     },
     get headerText() {
-      return this.titleStart + 3;
+      return round2(this.titleStart + headerHeight * 0.2);
     },
     get textWidth() {
       return this.statText(useSeparateLine ? 0 : statCount) - this.headerText;
@@ -1623,8 +1499,6 @@ function toSvgG(script, ops, ctx) {
     ctx.onDoubleTitle();
   }
   const graphHeight = height - headerHeight - headerSpacing;
-  script = script.clone();
-  if (normalize) script.normalize();
   const isForHandy = "_isForHandy" in script && script._isForHandy;
   let axis = script.id ?? "L0";
   if (isForHandy) axis = "☞";
@@ -1635,33 +1509,32 @@ function toSvgG(script, ops, ctx) {
     title += "::bad";
     axis = "!!!";
   }
-  const round2 = (x) => +x.toFixed(2);
   const yy = {
     top: 0,
     get headerExtra() {
       return useSeparateLine ? headerHeight : 0;
     },
     get titleBottom() {
-      return headerHeight + this.headerExtra;
+      return round2(headerHeight + this.headerExtra);
     },
     get graphTop() {
-      return this.titleBottom + headerSpacing;
+      return round2(this.titleBottom + headerSpacing);
     },
     get svgBottom() {
-      return height + this.headerExtra;
+      return round2(height + this.headerExtra);
     },
     get axisText() {
-      return (this.top + this.svgBottom) / 2 + 4 + this.headerExtra / 2;
+      return round2((this.top + this.svgBottom) / 2 + 4 + this.headerExtra / 2);
     },
-    headerText: headerHeight * 0.75,
+    headerText: round2(headerHeight * 0.75),
     get statLabelText() {
-      return headerHeight * 0.35 + this.headerExtra;
+      return round2(headerHeight * 0.35 + this.headerExtra);
     },
     get statValueText() {
-      return headerHeight * 0.95 + this.headerExtra;
+      return round2(headerHeight * 0.95 + this.headerExtra);
     },
   };
-  const bgGradientId = `funsvg-grad-${Math.random().toString(26).slice(2)}`;
+  const bgGradientId = `funsvg-grad-${script.id}-${script.actions.length}-${script.actions[0]?.at || 0}`;
   const axisColor = speedToHexCached(stats.AvgSpeed);
   const axisOpacity = round2(
     headerOpacity * Math.max(0.5, Math.min(1, stats.AvgSpeed / 100)),
@@ -1697,7 +1570,7 @@ function toSvgG(script, ops, ctx) {
       "    </g>",
     ],
     axisWidth > 0 &&
-      `    <text class="funsvg-axis" x="${xx.axisText}" y="${yy.axisText}" font-size="${Math.max(12, axisWidth * 0.75)}px" font-family="${axisFont}" text-anchor="middle" dominant-baseline="middle"> ${axis} </text>`,
+      `    <text class="funsvg-axis" x="${xx.axisText}" y="${yy.axisText}" font-size="${round2(Math.max(12, axisWidth * 0.75))}px" font-family="${axisFont}" text-anchor="middle" dominant-baseline="middle"> ${axis} </text>`,
     `    <text class="funsvg-title" x="${xx.headerText}" y="${yy.headerText}"> ${textToSvgText(title)} </text>`,
     ...Object.entries(stats)
       .reverse()
@@ -1740,25 +1613,8 @@ function funscriptOptions(width = 690) {
         halo: false,
       };
 }
-function handyMark(fun) {
-  if ("_isForHandy" in fun) return;
-  if (fun.file?.id) return;
-  if (fun.axes.length) return;
-  const stats = fun.toStats();
-  if (stats.MaxSpeed > 500) return;
-  const ats = fun.actions.map((a) => a.at).sort((a, b) => a - b);
-  const diffs = ats.map((e, i, a) => e - a[i - 1]).slice(1);
-  let isForHandy = diffs.every((e) => e > 30);
-  console.log({ ats, diffs, isForHandy });
-  if (isForHandy) {
-    Object.assign(fun, {
-      _isForHandy: true,
-    });
-  }
-}
 export {
   toSvgElement,
-  handyMark,
   funscriptOptions,
   exampleFunscript,
   exampleBlobUrl,

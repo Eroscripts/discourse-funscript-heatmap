@@ -1,60 +1,24 @@
 // @ts-check
 import { apiInitializer } from "discourse/lib/api";
-import {
-  exampleBlobUrl,
-  Funscript,
-  handyMark,
-  toSvgElement,
-} from "../lib/funlib";
-import { makeSettingsEdits, userSettings } from "../lib/settings";
+import { exampleBlobUrl, Funscript, toSvgElement } from "../lib/funlib";
 import { clearExpiredCache, getCached } from "../lib/cache";
 import ClickTrack from "discourse/lib/click-track";
+import {
+  injectSettings,
+  USER_SETTINGS_UPDATED_EVENT,
+  userSettings,
+} from "../lib/user_settings";
 
 export default apiInitializer((api) => {
   clearExpiredCache();
 
   // Inject user settings UI into preferences page
-  api.onPageChange((url: string) => {
-    if (url.startsWith("/u/") && url.includes("/preferences")) {
-      setTimeout(() => {
-        if (document.getElementById("heatmap-user-settings")) return;
-        const preferences = document.querySelector(".user-preferences");
-        if (preferences) {
-          preferences.appendChild(makeSettingsEdits());
-        }
-      }, 500);
-    }
-  });
+  api.onPageChange(injectSettings);
 
-  function createIcon(options: { rotate?: number } = {}) {
-    const icon = document.createElement("img");
-    icon.src = "/images/emoji/twitter/bookmark_tabs.png?v=12";
-    icon.className = "emoji";
-    icon.style.width = "1.2em";
-    icon.style.height = "1.2em";
-    if (options.rotate) icon.style.filter = `hue-rotate(${options.rotate}deg)`;
-    return icon;
-  }
-  function createHeatmapImage(options: {
-    width: number;
-    merged?: boolean;
-    src?: string;
-  }) {
-    const img = document.createElement("img");
-    img.className =
-      "funscript-heatmap-image" +
-      (options.merged ? " funscript-heatmap-image-merged" : "");
-    img.style.display = "block";
-    img.style.willChange = "opacity"; // improve draw perf
-    img.src = options.src ?? exampleBlobUrl(options.width);
-    return img;
-  }
-  function createTextSpan(text: string) {
-    const span = document.createElement("span");
-    span.style.color = "var(--primary)";
-    span.textContent = text;
-    return span;
-  }
+  // Listen for user setting changes to handle cache clearing or other actions
+  document.addEventListener(USER_SETTINGS_UPDATED_EVENT, () => {
+    clearExpiredCache(true);
+  });
 
   api.decorateCookedElement(
     async (cookedElement: HTMLElement) => {
@@ -232,7 +196,7 @@ export default apiInitializer((api) => {
 });
 
 async function fetchFunscript(url: string): Promise<Funscript> {
-  let response = await getCached(url, fetch);
+  let response = await getCached(url, "funscript-cache", fetch);
 
   if (!response) {
     throw new Error(`Failed to fetch funscript: ${url}`);
@@ -246,9 +210,7 @@ async function fetchFunscript(url: string): Promise<Funscript> {
   }
 
   const json = await response.json();
-  let fun = new Funscript(json, { file: decodeURIComponent(filePath) });
-  handyMark(fun);
-  return fun;
+  return new Funscript(json, { file: decodeURIComponent(filePath) });
 }
 
 async function generateSvgBlobUrl(
@@ -260,7 +222,7 @@ async function generateSvgBlobUrl(
   console.time("readCache " + url);
   const svgUrl = url + ".svg" + (width === 690 ? "" : "?width=" + width);
 
-  let response = await getCached(svgUrl, async () => {
+  let response = await getCached(svgUrl, "funscript-svg-cache", async () => {
     console.time("fetchFunscript " + url);
     funscript ??= await fetchFunscript(url);
     console.timeEnd("fetchFunscript " + url);
@@ -288,4 +250,34 @@ async function generateSvgBlobUrl(
     console.error("Failed to generate SVG blob URL for " + url);
     return "";
   }
+}
+
+function createIcon(options: { rotate?: number } = {}) {
+  const icon = document.createElement("img");
+  icon.src = "/images/emoji/twitter/bookmark_tabs.png?v=12";
+  icon.className = "emoji";
+  icon.style.width = "1.2em";
+  icon.style.height = "1.2em";
+  if (options.rotate) icon.style.filter = `hue-rotate(${options.rotate}deg)`;
+  return icon;
+}
+function createHeatmapImage(options: {
+  width: number;
+  merged?: boolean;
+  src?: string;
+}) {
+  const img = document.createElement("img");
+  img.className =
+    "funscript-heatmap-image" +
+    (options.merged ? " funscript-heatmap-image-merged" : "");
+  img.style.display = "block";
+  img.style.willChange = "opacity"; // improve draw perf
+  img.src = options.src ?? exampleBlobUrl(options.width);
+  return img;
+}
+function createTextSpan(text: string) {
+  const span = document.createElement("span");
+  span.style.color = "var(--primary)";
+  span.textContent = text;
+  return span;
 }

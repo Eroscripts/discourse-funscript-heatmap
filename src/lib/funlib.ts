@@ -1,6 +1,6 @@
 import { Funscript } from "@eroscripts/funlib";
 import { toSvgBlobUrl } from "@eroscripts/funlib/rendering/svg";
-import { userSettings } from "./settings";
+import { userSettings } from "./user_settings";
 export { Funscript } from "@eroscripts/funlib";
 export { toSvgElement } from "@eroscripts/funlib/rendering/svg";
 
@@ -25,23 +25,4 @@ export function funscriptOptions(width: number = 690) {
         headerOpacity: 0.2,
         halo: false,
       };
-}
-
-export function handyMark(fun: Funscript) {
-  if ("_isForHandy" in fun) return;
-  if (fun.file?.id) return;
-  if (fun.axes.length) return;
-  const stats = fun.toStats();
-  if (stats.MaxSpeed > 500) return;
-
-  const ats = fun.actions.map((a) => a.at).sort((a, b) => a - b);
-  const diffs = ats.map((e, i, a) => e - a[i - 1]!).slice(1);
-  let isForHandy = diffs.every((e) => e > 30);
-  console.log({ ats, diffs, isForHandy });
-
-  if (isForHandy) {
-    Object.assign(fun, {
-      _isForHandy: true,
-    });
-  }
 }

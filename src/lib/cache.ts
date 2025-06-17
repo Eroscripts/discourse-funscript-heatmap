@@ -1,33 +1,35 @@
+import { THEME_ID, THEME_VERSION } from "./generated";
+
 const CACHE_NAME = "funscript-cache";
+const SVG_CACHE_NAME = "funscript-svg-cache";
 const MAX_CACHE_AGE_HOURS = 8;
-const CACHE_HASH = "2";
 
-export async function clearCache() {
-  await window.caches.delete(CACHE_NAME);
-
-  // legacy
-  localStorage.removeItem("funscript-cache-info");
-}
-
-export function clearExpiredCache() {
+export function clearExpiredCache(forceClearSvg = false) {
+  const CACHE_HASH = `${THEME_ID}-${THEME_VERSION}`;
   const cacheAge = localStorage.getItem("funscript-cache-age");
   const cacheHash = localStorage.getItem("funscript-cache-hash");
   if (!cacheAge)
     localStorage.setItem("funscript-cache-age", Date.now().toString());
   if (!cacheHash) localStorage.setItem("funscript-cache-hash", CACHE_HASH);
-  if (!cacheAge || !cacheHash) return clearCache();
+  if (!cacheAge || !cacheHash) return;
+
+  if (forceClearSvg) {
+    window.caches.delete(SVG_CACHE_NAME);
+  }
 
   let age = !cacheAge ? 0 : Date.now() - new Date(cacheAge).getTime();
   if (age > MAX_CACHE_AGE_HOURS * 3600e3 || cacheHash !== CACHE_HASH) {
-    clearCache();
+    window.caches.delete(CACHE_NAME);
+    window.caches.delete(SVG_CACHE_NAME);
   }
 }
 
 export async function getCached(
   url: string,
+  cacheName: "funscript-cache" | "funscript-svg-cache",
   create?: (url: string) => Promise<Response | null>,
 ): Promise<Response | null> {
-  const cache = await window.caches.open(CACHE_NAME);
+  const cache = await window.caches.open(cacheName);
   const cachedResponse = await cache.match(url);
   if (cachedResponse) return cachedResponse;
 
