@@ -145,6 +145,8 @@ export default apiInitializer((api) => {
           console.log({ isMergedLink, clickedLink }, e, e.target);
 
           if (!isMergedLink) return;
+          // prevent tracking
+          e.stopPropagation();
 
           if (userSettings.separate_downloads) {
             // stop download if separate downloads is enabled
@@ -202,11 +204,47 @@ export default apiInitializer((api) => {
           e.stopPropagation();
         });
 
+        const helpButton = document.createElement("button");
+        helpButton.textContent = "?";
+        helpButton.style.cssText = `
+          float: right;
+          outline: solid 1px var(--tertiary);
+          padding: 0px;
+          background-color: var(--primary-very-low);
+          margin-bottom: .5rem;
+          border: 0;
+          height: 1.3em;
+          width: 1.3em;
+          border-radius: 50%;
+          margin-right: 0.3em;
+          margin-left: 0.3em;
+          cursor: pointer;
+          color: var(--primary);
+        `;
+        helpButton.title = "Click for merging explanation";
+        helpButton.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+
+          const explanation = `Script Merging Explanation:
+When multi-axis funscript files are detected in a post, they are automatically merged.
+• Clicking the heatmap will download the merged script.
+• Merged script can only be used in MFP.
+• If you use XTP or something else, enable "separate downloads" in your preferences, then clicking will download the individual files.
+
+Would you like to open preferences?
+`;
+
+          if (confirm(explanation)) {
+            window.open("/my/preferences/account", "_blank");
+          }
+        });
+
         const size = createTextSpan(` (0.0 KB)`);
 
         links[0]!.container.replaceWith(container);
         details.append(summary, ...links.map((l) => l.container));
-        container.append(img, icon, a, size, details);
+        container.append(img, icon, a, size, details, helpButton);
 
         requestAnimationFrame(() => {
           const text = m.toJsonText({ compress: true, maxPrecision: 0 });

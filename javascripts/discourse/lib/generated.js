@@ -24,7 +24,7 @@ var settingsYml = {
   },
   use_max_extension: {
     type: "bool",
-    default: true,
+    default: false,
     description:
       "Use .max.funscript extension for multi-axis funscripts (renaming video to .max.mp4 is recommended)",
   },
