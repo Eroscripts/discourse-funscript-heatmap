@@ -1,6 +1,11 @@
 // @ts-check
 import { apiInitializer } from "discourse/lib/api";
-import { exampleBlobUrl, Funscript, toSvgElement } from "../lib/funlib";
+import {
+  exampleBlobUrl,
+  Funscript,
+  funscriptOptions,
+  toSvgElement,
+} from "../lib/funlib";
 import { clearExpiredCache, getCached } from "../lib/cache";
 import ClickTrack from "discourse/lib/click-track";
 import {
@@ -250,14 +255,7 @@ async function generateSvgBlobUrl(
     console.timeEnd("fetchFunscript " + url);
     console.time("toSvgElement " + svgUrl);
 
-    // Use user setting if present, else theme setting
-    const solidBackground = userSettings.solid_background;
-    const svg = toSvgElement([funscript], {
-      width,
-      ...(solidBackground
-        ? { solidHeaderBackground: true, headerOpacity: 0.2, halo: false }
-        : {}),
-    });
+    const svg = toSvgElement([funscript], funscriptOptions(width));
     console.timeEnd("toSvgElement " + svgUrl);
 
     const blob = new Blob([svg], { type: "image/svg+xml" });

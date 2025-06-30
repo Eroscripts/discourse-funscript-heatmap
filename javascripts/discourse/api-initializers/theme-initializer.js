@@ -1,5 +1,10 @@
 import { clearExpiredCache, getCached } from "../lib/cache";
-import { Funscript, exampleBlobUrl, toSvgElement } from "../lib/funlib";
+import {
+  Funscript,
+  exampleBlobUrl,
+  funscriptOptions,
+  toSvgElement,
+} from "../lib/funlib";
 import {
   USER_SETTINGS_UPDATED_EVENT,
   injectSettings,
@@ -196,13 +201,7 @@ async function generateSvgBlobUrl(url, width = 690, funscript) {
     funscript ??= await fetchFunscript(url);
     console.timeEnd("fetchFunscript " + url);
     console.time("toSvgElement " + svgUrl);
-    const solidBackground = userSettings.solid_background;
-    const svg = toSvgElement([funscript], {
-      width,
-      ...(solidBackground
-        ? { solidHeaderBackground: true, headerOpacity: 0.2, halo: false }
-        : {}),
-    });
+    const svg = toSvgElement([funscript], funscriptOptions(width));
     console.timeEnd("toSvgElement " + svgUrl);
     const blob = new Blob([svg], { type: "image/svg+xml" });
     return new Response(blob);

@@ -1,5 +1,8 @@
 import { Funscript } from "@eroscripts/funlib";
-import { toSvgBlobUrl } from "@eroscripts/funlib/rendering/svg";
+import {
+  toSvgBlobUrl,
+  type SvgOptions,
+} from "@eroscripts/funlib/rendering/svg";
 import { userSettings } from "./user_settings";
 export { Funscript } from "@eroscripts/funlib";
 export { toSvgElement } from "@eroscripts/funlib/rendering/svg";
@@ -15,14 +18,14 @@ export function exampleBlobUrl(width: number = 690) {
   exampleBlobCache.set(width, blobUrl);
   return blobUrl;
 }
-export function funscriptOptions(width: number = 690) {
+export function funscriptOptions(width: number = 690): SvgOptions {
   const solidBackground = userSettings.solid_background;
   return !solidBackground
     ? { width }
     : {
         width,
         solidHeaderBackground: true,
-        headerOpacity: 0.2,
+        headerOpacity: 0.8,
         halo: false,
       };
 }

@@ -1521,7 +1521,7 @@ function toSvgG(script, ops, ctx) {
       return round2(headerHeight * 0.35 + this.headerExtra);
     },
     get statValueText() {
-      return round2(headerHeight * 0.95 + this.headerExtra);
+      return round2(headerHeight * 0.92 + this.headerExtra);
     },
   };
   const bgGradientId = `funsvg-grad-${script.id}-${script.actions.length}-${script.actions[0]?.at || 0}`;
@@ -1538,7 +1538,7 @@ function toSvgG(script, ops, ctx) {
     `    <rect class="funsvg-bg-title-drop" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="#ccc" opacity="${round2(graphOpacity * 1.5)}"></rect>`,
     axisWidth > 0 &&
       `    <rect class="funsvg-bg-axis" x="0" y="${yy.top}" width="${xx.axisEnd}" height="${yy.svgBottom - yy.top}" fill="${axisColor}" opacity="${axisOpacity}"></rect>`,
-    `    <rect class="funsvg-bg-title" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="${solidHeaderBackground ? axisColor : `url(#${bgGradientId})`}" opacity="${round2(solidHeaderBackground ? axisOpacity * headerOpacity : headerOpacity)}"></rect>`,
+    `    <rect class="funsvg-bg-title" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="${solidHeaderBackground ? axisColor : `url(#${bgGradientId})`}" opacity="${round2(solidHeaderBackground ? axisOpacity : headerOpacity)}"></rect>`,
     `    <rect class="funsvg-bg-graph" x="${xx.titleStart}" width="${xx.graphWidth}" y="${yy.graphTop}" height="${graphHeight}" fill="url(#${bgGradientId})" opacity="${round2(graphOpacity)}"></rect>`,
     "  </g>",
     `  <g class="funsvg-lines" transform="translate(${xx.titleStart}, ${yy.graphTop})" stroke-width="${w}" fill="none" stroke-linecap="round">`,
@@ -1599,7 +1599,7 @@ function funscriptOptions(width = 690) {
     : {
         width,
         solidHeaderBackground: true,
-        headerOpacity: 0.2,
+        headerOpacity: 0.8,
         halo: false,
       };
 }
