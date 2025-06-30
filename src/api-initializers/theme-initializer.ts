@@ -138,9 +138,31 @@ export default apiInitializer((api) => {
             : (e.target as HTMLElement).closest("a");
           const isMergedLink = clickedLink?.matches(".funscript-link-merged");
           console.log({ isMergedLink, clickedLink }, e, e.target);
+
           if (!isMergedLink) return;
 
-          e.stopPropagation(); // prevent tracking
+          if (userSettings.separate_downloads) {
+            // stop download if separate downloads is enabled
+            e.preventDefault();
+            // Download files sequentially with delays to avoid browser blocking
+            links.forEach((link, index) => {
+              setTimeout(() => {
+                console.log("click", link.a);
+                // Create a more convincing synthetic click event
+                const syntheticEvent = new MouseEvent("click", {
+                  bubbles: true,
+                  cancelable: true,
+                  view: window,
+                  button: 0,
+                  which: 1,
+                  detail: 1, // click count
+                });
+                // Dispatch the event to trigger download
+                link.a.dispatchEvent(syntheticEvent);
+              }, index * 500); // 500ms delay between downloads
+            });
+            return;
+          }
 
           // Track clicks for all original links using Discourse's system
           links.forEach((link) => {

@@ -599,16 +599,21 @@ function secondsToDuration(seconds) {
     .toFixed(0)
     .padStart(2, "0")}`;
 }
-function orderTrimJson(that, order, empty) {
-  const copy = { ...order, ...that };
-  for (const [k, v] of Object.entries(empty)) {
-    if (!(k in copy)) continue;
+function orderTrimJson(that, overrides) {
+  const shape = that.constructor?.jsonShape;
+  if (!shape || typeof shape !== "object") {
+    throw new Error("orderTrimJson: missing static jsonShape on constructor");
+  }
+  const copy = { ...shape, ...that, ...overrides };
+  for (const [k, v] of Object.entries(shape)) {
+    if (v === undefined || !(k in copy)) continue;
     const copyValue = copy[k];
     if (copyValue === v) delete copy[k];
     if (
       Array.isArray(v) &&
       Array.isArray(copyValue) &&
-      copyValue.length === 0
+      copyValue.length === 0 &&
+      v.length === 0
     ) {
       delete copy[k];
     } else if (
@@ -763,17 +768,12 @@ class FunAction {
   constructor(action) {
     Object.assign(this, action);
   }
-  static jsonOrder = { at: undefined, pos: undefined };
+  static jsonShape = { at: undefined, pos: undefined };
   toJSON() {
-    return orderTrimJson(
-      {
-        ...this,
-        at: +this.at.toFixed(1),
-        pos: +this.pos.toFixed(1),
-      },
-      FunAction.jsonOrder,
-      {},
-    );
+    return orderTrimJson(this, {
+      at: +this.at.toFixed(1),
+      pos: +this.pos.toFixed(1),
+    });
   }
   clone() {
     return clone(this);
@@ -799,15 +799,9 @@ class FunChapter {
   set endAt(v) {
     this.endTime = msToTimeSpan(v);
   }
-  static jsonOrder = {
-    startTime: undefined,
-    endTime: undefined,
-    name: undefined,
-  };
+  static jsonShape = { startTime: undefined, endTime: undefined, name: "" };
   toJSON() {
-    return orderTrimJson(this, FunChapter.jsonOrder, {
-      name: "",
-    });
+    return orderTrimJson(this);
   }
   clone() {
     return clone(this);
@@ -827,11 +821,9 @@ class FunBookmark {
   set startAt(v) {
     this.time = msToTimeSpan(v);
   }
-  static jsonOrder = { time: undefined, name: undefined };
+  static jsonShape = { time: undefined, name: "" };
   toJSON() {
-    return orderTrimJson(this, FunBookmark.jsonOrder, {
-      name: "",
-    });
+    return orderTrimJson(this);
   }
 }
 
@@ -856,37 +848,25 @@ class FunMetadata {
       }
     }
   }
-  static emptyJson = {
-    bookmarks: [],
-    chapters: [],
+  static jsonShape = {
+    title: "",
     creator: "",
     description: "",
+    duration: undefined,
+    chapters: [],
+    bookmarks: [],
     license: "",
     notes: "",
     performers: [],
     script_url: "",
     tags: [],
-    title: "",
     type: "basic",
     video_url: "",
   };
-  static jsonOrder = {
-    title: undefined,
-    creator: undefined,
-    description: undefined,
-    duration: undefined,
-    chapters: undefined,
-    bookmarks: undefined,
-  };
   toJSON() {
-    return orderTrimJson(
-      {
-        ...this,
-        duration: +this.duration.toFixed(3),
-      },
-      FunMetadata.jsonOrder,
-      FunMetadata.emptyJson,
-    );
+    return orderTrimJson(this, {
+      duration: +this.duration.toFixed(3),
+    });
   }
   clone() {
     const clonedData = JSON.parse(JSON.stringify(this.toJSON()));
@@ -930,12 +910,11 @@ class Funscript {
   static Metadata = FunMetadata;
   static File = FunscriptFile;
   static AxisScript = null;
-  static mergeMultiAxis(scripts) {
+  static mergeMultiAxis(scripts, options) {
     const multiaxisScripts = scripts.filter((e) => e.axes.length);
     const singleaxisScripts = scripts.filter((e) => !e.axes.length);
-    const groups = Object.groupBy(
-      singleaxisScripts,
-      (e) => e.file?.title ?? "[unnamed]",
+    const groups = Object.groupBy(singleaxisScripts, (e) =>
+      e.file ? e.file.dir + e.file.title : "[unnamed]",
     );
     const mergedSingleaxisScripts = Object.entries(groups).flatMap(
       ([_title, scripts2]) => {
@@ -946,19 +925,38 @@ class Funscript {
         const axes = [...new Set(allScripts.map((e) => e.id))];
         if (axes.length === allScripts.length) {
           const L0 = allScripts.find((e) => e.id === "L0");
-          if (!L0)
-            throw new Error(
-              "Funscript.mergeMultiAxis: trying to merge multi-axis scripts without L0",
-            );
-          const result = new this(L0, {
-            axes: allScripts.filter((e) => e.id !== "L0"),
-          });
-          if (L0.file) {
-            result.file = L0.file.clone();
-            result.file.mergedFiles = allScripts.map((e) => e.file);
+          if (L0) {
+            const result = new this(L0, {
+              axes: allScripts.filter((e) => e !== L0),
+            });
+            if (L0.file) {
+              result.file = L0.file.clone();
+              result.file.mergedFiles = allScripts.map((e) => e.file);
+            }
+            return result;
           }
-          return result;
+          if (options?.allowMissingL0) {
+            const result = new this(
+              { metadata: allScripts[0].metadata.clone(), actions: [] },
+              {
+                axes: allScripts,
+              },
+            );
+            if (allScripts[0].file) {
+              result.file = allScripts[0].file.clone();
+              result.file.axisName = "";
+              result.file.mergedFiles = allScripts.map((e) => e.file);
+            }
+            return result;
+          }
+          throw new Error(
+            "Funscript.mergeMultiAxis: trying to merge multi-axis scripts without L0",
+          );
         }
+        console.log(
+          allScripts.map((e) => e.file?.filePath),
+          axes,
+        );
         throw new Error(
           "Funscript.mergeMultiAxis: multi-axis scripts are not implemented yet",
         );
@@ -1061,35 +1059,26 @@ class Funscript {
     if (!ids) return allAxes;
     return allAxes.filter((axis) => ids.includes(axis.id));
   }
-  static emptyJson = {
-    axes: [],
+  static jsonShape = {
+    id: undefined,
     metadata: {},
+    actions: undefined,
+    axes: [],
     inverted: false,
     range: 100,
     version: "1.0",
   };
-  static jsonOrder = {
-    id: undefined,
-    metadata: undefined,
-    actions: undefined,
-    axes: undefined,
-  };
   toJSON() {
-    return orderTrimJson(
-      {
-        ...this,
-        axes: this.axes
-          .slice()
-          .sort(orderByAxis)
-          .map((e) => ({ ...e.toJSON(), metadata: undefined })),
-        metadata: {
-          ...this.metadata.toJSON(),
-          duration: +this.duration.toFixed(3),
-        },
+    return orderTrimJson(this, {
+      axes: this.axes
+        .slice()
+        .sort(orderByAxis)
+        .map((e) => ({ ...e.toJSON(), metadata: undefined })),
+      metadata: {
+        ...this.metadata.toJSON(),
+        duration: +this.duration.toFixed(3),
       },
-      Funscript.jsonOrder,
-      Funscript.emptyJson,
-    );
+    });
   }
   toJsonText(options) {
     return formatJson(JSON.stringify(this, null, 2), options ?? {});
@@ -1108,7 +1097,8 @@ class AxisScript extends Funscript {
     if (!this.parent) throw new Error("AxisScript: parent is not defined");
   }
   clone() {
-    return this.parent.clone().axes.find((e) => e.id === this.id);
+    const index = this.parent.axes.indexOf(this);
+    return this.parent.clone().axes[index];
   }
 }
 Funscript.AxisScript = AxisScript;

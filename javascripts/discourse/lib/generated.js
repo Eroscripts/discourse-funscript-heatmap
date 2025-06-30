@@ -1,6 +1,6 @@
 // src/lib/generated.ts
 var THEME_ID = "discourse-funscript-heatmap";
-var THEME_VERSION = "1.2.0";
+var THEME_VERSION = "1.3.0";
 var settingsYml = {
   disable_heatmaps: {
     type: "bool",
@@ -19,7 +19,7 @@ var settingsYml = {
   },
   merge_scripts: {
     type: "bool",
-    default: false,
+    default: true,
     description: "Merge multi-axis funscripts",
   },
   use_max_extension: {
@@ -27,6 +27,12 @@ var settingsYml = {
     default: true,
     description:
       "Use .max.funscript extension for multi-axis funscripts (renaming video to .max.mp4 is recommended)",
+  },
+  separate_downloads: {
+    type: "bool",
+    default: false,
+    description:
+      "Download all axis scripts when clicking on the merged heatmap, rather than merged script",
   },
 };
 export { settingsYml, THEME_VERSION, THEME_ID };

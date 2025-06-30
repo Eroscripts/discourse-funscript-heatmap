@@ -111,7 +111,24 @@ var theme_initializer_default = apiInitializer((api) => {
           const isMergedLink = clickedLink?.matches(".funscript-link-merged");
           console.log({ isMergedLink, clickedLink }, e, e.target);
           if (!isMergedLink) return;
-          e.stopPropagation();
+          if (userSettings.separate_downloads) {
+            e.preventDefault();
+            links2.forEach((link, index) => {
+              setTimeout(() => {
+                console.log("click", link.a);
+                const syntheticEvent = new MouseEvent("click", {
+                  bubbles: true,
+                  cancelable: true,
+                  view: window,
+                  button: 0,
+                  which: 1,
+                  detail: 1,
+                });
+                link.a.dispatchEvent(syntheticEvent);
+              }, index * 500);
+            });
+            return;
+          }
           links2.forEach((link) => {
             const syntheticEvent = new MouseEvent("click", {
               bubbles: true,

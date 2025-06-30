@@ -1,4 +1,5 @@
 import { settingsYml, THEME_ID } from "./generated";
+const settingsTitle = "Heatmap Settings";
 
 type Writable<T> = {
   -readonly [P in keyof T]: T[P];
@@ -31,7 +32,7 @@ export function makeSettingsEdits() {
   container.style.marginTop = "2em";
 
   const h3 = document.createElement("h3");
-  h3.textContent = "Theme User Settings";
+  h3.textContent = settingsTitle;
   container.appendChild(h3);
 
   for (const [key, config] of Object.entries(settingsYml) as [

@@ -1,6 +1,7 @@
 import { THEME_ID, settingsYml } from "./generated";
 
 // src/lib/user_settings.ts
+var settingsTitle = "Heatmap Settings";
 var USER_SETTINGS_UPDATED_EVENT = `${THEME_ID}-user-settings`;
 var userSettings = new Proxy(settings, {
   get(target, prop) {
@@ -22,7 +23,7 @@ function makeSettingsEdits() {
   container.id = `${THEME_ID}-user-settings`;
   container.style.marginTop = "2em";
   const h3 = document.createElement("h3");
-  h3.textContent = "Theme User Settings";
+  h3.textContent = settingsTitle;
   container.appendChild(h3);
   for (const [key, config] of Object.entries(settingsYml)) {
     let set = function (value) {
