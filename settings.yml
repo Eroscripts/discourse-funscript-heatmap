@@ -1,29 +1,41 @@
 disable_heatmaps:
+  description: "Disable funscript heatmap generation entirely"
   type: bool
   default: false
-  description: "Disable funscript heatmap generation entirely"
 
 solid_background:
+  description: "Use solid background color instead of gradient in heatmaps"
   type: bool
   default: false
-  description: "Use solid background color instead of gradient in heatmaps"
 
 cache_heatmaps:
-  type: bool
-  default: true
   description: "Cache heatmaps for faster loading"
-
-merge_scripts:
   type: bool
   default: true
-  description: "Merge multi-axis funscripts"
 
-use_max_extension:
+merge_heatmaps:
+  description: "Merge heatmaps of multi-axis funscripts"
   type: bool
-  default: false
-  description: "Use .max.funscript extension for multi-axis funscripts (renaming video to .max.mp4 is recommended)"
+  default: true
 
-separate_downloads:
-  type: bool
-  default: false
-  description: "Download all axis scripts when clicking on the merged heatmap, rather than merged script"
+multiaxis_download_format:
+  description: "How to download multi-axis funscripts"
+  type: dropdown
+  default: "merged-axes"
+  choices:
+    - value: "merged-axes"
+      description: "1.1 - Download as SLT funscript, supported by MFP since forever"
+    - value: "merged-2.0"
+      description: "2.0 - Download as 2.0 funscript, supported since MFP v1.33.9 & XTP v0.55b"
+    - value: "separate"
+      description: "separate - Download all axis scripts as separate files. Saves you some clicking."
+
+multiaxis_extension:
+  description: "File extension for merged multi-axis funscripts"
+  type: dropdown
+  default: ".funscript"
+  choices:
+    - value: ".max.funscript"
+      description: "Use .max.funscript extension (requires video to be renamed to .max.mp4)"
+    - value: ".funscript"
+      description: "Use .funscript extension"

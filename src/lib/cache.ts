@@ -14,13 +14,13 @@ export function clearExpiredCache(forceClearSvg = false) {
   if (!cacheAge || !cacheHash) return;
 
   if (forceClearSvg) {
-    window.caches.delete(SVG_CACHE_NAME);
+    void window.caches.delete(SVG_CACHE_NAME);
   }
 
   let age = !cacheAge ? 0 : Date.now() - new Date(cacheAge).getTime();
   if (age > MAX_CACHE_AGE_HOURS * 3600e3 || cacheHash !== CACHE_HASH) {
-    window.caches.delete(CACHE_NAME);
-    window.caches.delete(SVG_CACHE_NAME);
+    void window.caches.delete(CACHE_NAME);
+    void window.caches.delete(SVG_CACHE_NAME);
   }
 }
 

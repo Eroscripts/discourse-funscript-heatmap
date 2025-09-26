@@ -24,8 +24,8 @@ export function funscriptOptions(width: number = 690): SvgOptions {
     ? { width }
     : {
         width,
-        solidHeaderBackground: true,
-        headerOpacity: 0.8,
+        solidTitleBackground: true,
+        titleOpacity: 0.8,
         halo: false,
       };
 }

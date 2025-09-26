@@ -8,7 +8,7 @@ const settingsYml = parse(await Bun.file("settings.yml").text());
 console.log({ settingsYml });
 
 // Generate the TypeScript constants and types
-Bun.write(
+await Bun.write(
   "src/lib/generated.ts",
   `
 export const THEME_ID = "${packageJson.name}";
@@ -20,6 +20,7 @@ declare global {
             bool: boolean;
             string: string;
             number: number;
+            dropdown: typeof settingsYml[K] extends {type: "dropdown"} ? (typeof settingsYml[K]["choices"][number])['value'] : never;
         }[typeof settingsYml[K]["type"]]
     }
 }

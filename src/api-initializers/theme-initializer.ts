@@ -69,7 +69,7 @@ export default apiInitializer((api) => {
         // if ((container.nextSibling as HTMLElement)?.tagName === "BR") {
         //   (container.nextSibling as HTMLElement).remove();
         // }
-        svg.then((svgUrl) => (img.src = svgUrl));
+        void svg.then((svgUrl) => (img.src = svgUrl));
 
         return {
           a,
@@ -84,7 +84,7 @@ export default apiInitializer((api) => {
         };
       });
       if (links.length === 0) return;
-      if (!userSettings.merge_scripts) return;
+      if (!userSettings.merge_heatmaps) return;
 
       const resolvedLinks = await Promise.all(
         links.map(async (link) => {
@@ -95,27 +95,48 @@ export default apiInitializer((api) => {
       );
       console.log("resolvedLinks", resolvedLinks);
 
-      const merged = Funscript.mergeMultiAxis(
-        resolvedLinks.map((r) => r.funscript),
-      );
+      const unmerged = resolvedLinks.map((r) => r.funscript);
+
+      let rootFiles = unmerged.filter((f) => !f.channel);
+      for (let f of rootFiles) {
+        let matches = rootFiles.filter(
+          (r) =>
+            !r.channel &&
+            r !== f &&
+            r.file!.dir === f.file!.dir &&
+            f.file!.title.startsWith(r.file!.title),
+        );
+        if (matches.length === 1) {
+          let m = matches[0]!;
+          let slice = f.file!.title.slice(m.file!.title.length);
+          if (slice.match(/^\.[a-zA-Z][a-zA-Z0-9]*$/)) {
+            f.file!.title = m.file!.title;
+            f.channel = f.file!.channel = slice.slice(1);
+          }
+        }
+      }
+
+      const merged = Funscript.mergeMultiAxis(unmerged, {
+        allowMissingActions: true,
+      });
+      console.log("merged", unmerged, "into", merged);
       for (let m of merged) {
-        if (m.axes.length == 0) continue;
+        if (m.listChannels.length == 0) continue;
         if (!m.file?.mergedFiles) continue;
 
-        if (
-          userSettings.use_max_extension &&
-          !m.file.filePath.endsWith(".max.funscript")
-        ) {
-          m.file!.axisName = "max" as any;
-        }
         let links = m.file!.mergedFiles!.map(
-          (f) => resolvedLinks.find((r) => r.file === f)!,
+          (f) => resolvedLinks.find((r) => r.file?.filePath === f.filePath)!,
         );
-        (m as any).version = "1.2";
-        (m.metadata as any).script_url = links[0]!.p
+        (m.metadata as any).topic_url = links[0]!.p
           .closest(".topic-body")!
           .querySelector<HTMLAnchorElement>("a.post-date")!
           .href.replace(/\?.*/, "");
+
+        if (userSettings.multiaxis_extension === ".max.funscript") {
+          if (!m.file.filePath.endsWith(".max.funscript")) {
+            m.file!.channel = "max" as any;
+          }
+        }
 
         const url = links.map((l) => l.url).join("&");
         const width = links[0]!.width;
@@ -148,7 +169,7 @@ export default apiInitializer((api) => {
           // prevent tracking
           e.stopPropagation();
 
-          if (userSettings.separate_downloads) {
+          if (userSettings.multiaxis_download_format === "separate") {
             // stop download if separate downloads is enabled
             e.preventDefault();
             // Download files sequentially with delays to avoid browser blocking
@@ -188,7 +209,7 @@ export default apiInitializer((api) => {
               writable: false,
             });
             // Track the click without navigating
-            ClickTrack.trackClick(syntheticEvent);
+            void ClickTrack.trackClick(syntheticEvent);
           });
         });
 
@@ -247,7 +268,14 @@ Would you like to open preferences?
         container.append(img, icon, a, size, details, helpButton);
 
         requestAnimationFrame(() => {
-          const text = m.toJsonText({ compress: true, maxPrecision: 0 });
+          const text = m.toJsonText({
+            compress: true,
+            maxPrecision: 0,
+            version:
+              userSettings.multiaxis_download_format === "merged-axes"
+                ? "1.1"
+                : undefined,
+          });
           const blob = new Blob([text], { type: "application/json" });
           container.href = URL.createObjectURL(blob);
           size.textContent = ` (${(text.length / 1024).toFixed(1)} KB)`;
@@ -290,11 +318,16 @@ async function generateSvgBlobUrl(
   let response = await getCached(svgUrl, "funscript-svg-cache", async () => {
     console.time("fetchFunscript " + url);
     funscript ??= await fetchFunscript(url);
+    if (funscript.channels.stroke && funscript.actions.length) {
+      (funscript as any)._isForHandy = true;
+    }
     console.timeEnd("fetchFunscript " + url);
     console.time("toSvgElement " + svgUrl);
 
     const svg = toSvgElement([funscript], funscriptOptions(width));
     console.timeEnd("toSvgElement " + svgUrl);
+
+    delete (funscript as any)._isForHandy;
 
     const blob = new Blob([svg], { type: "image/svg+xml" });
     return new Response(blob);

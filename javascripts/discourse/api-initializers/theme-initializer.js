@@ -64,7 +64,7 @@ var theme_initializer_default = apiInitializer((api) => {
         };
       });
       if (links.length === 0) return;
-      if (!userSettings.merge_scripts) return;
+      if (!userSettings.merge_heatmaps) return;
       const resolvedLinks = await Promise.all(
         links.map(async (link) => {
           let funscript = await link.funscript;
@@ -73,26 +73,44 @@ var theme_initializer_default = apiInitializer((api) => {
         }),
       );
       console.log("resolvedLinks", resolvedLinks);
-      const merged = Funscript.mergeMultiAxis(
-        resolvedLinks.map((r) => r.funscript),
-      );
-      for (let m of merged) {
-        if (m.axes.length == 0) continue;
-        if (!m.file?.mergedFiles) continue;
-        if (
-          userSettings.use_max_extension &&
-          !m.file.filePath.endsWith(".max.funscript")
-        ) {
-          m.file.axisName = "max";
-        }
-        let links2 = m.file.mergedFiles.map((f) =>
-          resolvedLinks.find((r) => r.file === f),
+      const unmerged = resolvedLinks.map((r) => r.funscript);
+      let rootFiles = unmerged.filter((f) => !f.channel);
+      for (let f of rootFiles) {
+        let matches = rootFiles.filter(
+          (r) =>
+            !r.channel &&
+            r !== f &&
+            r.file.dir === f.file.dir &&
+            f.file.title.startsWith(r.file.title),
         );
-        m.version = "1.2";
-        m.metadata.script_url = links2[0].p
+        if (matches.length === 1) {
+          let m = matches[0];
+          let slice = f.file.title.slice(m.file.title.length);
+          if (slice.match(/^\.[a-zA-Z][a-zA-Z0-9]*$/)) {
+            f.file.title = m.file.title;
+            f.channel = f.file.channel = slice.slice(1);
+          }
+        }
+      }
+      const merged = Funscript.mergeMultiAxis(unmerged, {
+        allowMissingActions: true,
+      });
+      console.log("merged", unmerged, "into", merged);
+      for (let m of merged) {
+        if (m.listChannels.length == 0) continue;
+        if (!m.file?.mergedFiles) continue;
+        let links2 = m.file.mergedFiles.map((f) =>
+          resolvedLinks.find((r) => r.file?.filePath === f.filePath),
+        );
+        m.metadata.topic_url = links2[0].p
           .closest(".topic-body")
           .querySelector("a.post-date")
           .href.replace(/\?.*/, "");
+        if (userSettings.multiaxis_extension === ".max.funscript") {
+          if (!m.file.filePath.endsWith(".max.funscript")) {
+            m.file.channel = "max";
+          }
+        }
         const url = links2.map((l) => l.url).join("&");
         const width = links2[0].width;
         const svg = await generateSvgBlobUrl(url, width, m);
@@ -117,7 +135,7 @@ var theme_initializer_default = apiInitializer((api) => {
           console.log({ isMergedLink, clickedLink }, e, e.target);
           if (!isMergedLink) return;
           e.stopPropagation();
-          if (userSettings.separate_downloads) {
+          if (userSettings.multiaxis_download_format === "separate") {
             e.preventDefault();
             links2.forEach((link, index) => {
               setTimeout(() => {
@@ -200,7 +218,14 @@ Would you like to open preferences?
         details.append(summary, ...links2.map((l) => l.container));
         container.append(img, icon, a, size, details, helpButton);
         requestAnimationFrame(() => {
-          const text = m.toJsonText({ compress: true, maxPrecision: 0 });
+          const text = m.toJsonText({
+            compress: true,
+            maxPrecision: 0,
+            version:
+              userSettings.multiaxis_download_format === "merged-axes"
+                ? "1.1"
+                : undefined,
+          });
           const blob = new Blob([text], { type: "application/json" });
           container.href = URL.createObjectURL(blob);
           size.textContent = ` (${(text.length / 1024).toFixed(1)} KB)`;
@@ -233,10 +258,14 @@ async function generateSvgBlobUrl(url, width = 690, funscript) {
   let response = await getCached(svgUrl, "funscript-svg-cache", async () => {
     console.time("fetchFunscript " + url);
     funscript ??= await fetchFunscript(url);
+    if (funscript.channels.stroke && funscript.actions.length) {
+      funscript._isForHandy = true;
+    }
     console.timeEnd("fetchFunscript " + url);
     console.time("toSvgElement " + svgUrl);
     const svg = toSvgElement([funscript], funscriptOptions(width));
     console.timeEnd("toSvgElement " + svgUrl);
+    delete funscript._isForHandy;
     const blob = new Blob([svg], { type: "image/svg+xml" });
     return new Response(blob);
   });

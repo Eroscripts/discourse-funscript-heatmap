@@ -38,9 +38,11 @@ function makeSettingsEdits() {
     const label = document.createElement("label");
     label.style.display = "block";
     label.style.marginBottom = "0.5em";
-    const input = document.createElement("input");
-    input.id = `${THEME_ID}-user-${key}`;
-    input.style.marginRight = "0.5em";
+    let input = document.createElement("input");
+    if (config.type !== "dropdown") {
+      input.id = `${THEME_ID}-user-${key}`;
+      input.style.marginRight = "0.5em";
+    }
     if (config.type === "bool") {
       input.type = "checkbox";
       input.checked = !!userSettings[key];
@@ -53,6 +55,16 @@ function makeSettingsEdits() {
       input.type = "number";
       input.value = String(userSettings[key]);
       input.addEventListener("input", () => set(+input.value || 0));
+    } else if (config.type === "dropdown") {
+      input = document.createElement("select");
+      for (const choice of config.choices ?? []) {
+        const option = document.createElement("option");
+        option.value = choice.value;
+        option.textContent = choice.description;
+        input.appendChild(option);
+      }
+      input.value = String(userSettings[key]);
+      input.addEventListener("change", () => set(input.value));
     }
     label.append(input, config.description);
     container.appendChild(label);

@@ -7,23 +7,6 @@ var __export = (target, all) => {
   for (var name2 in all)
     __defProp(target, name2, { get: all[name2], enumerable: true });
 };
-function invariant(condition, message) {
-  if (condition) {
-    return;
-  }
-  if (true) {
-    if (message === undefined) {
-      throw new Error("invariant requires an error message argument");
-    }
-  }
-  const error = !message
-    ? new Error(
-        "Minified exception occurred; use the non-minified dev environment for the full error message and additional helpful warnings.",
-      )
-    : new Error(message);
-  error.name = "colorizr";
-  throw error;
-}
 var COLOR_KEYS = {
   hsl: ["h", "s", "l"],
   oklab: ["l", "a", "b"],
@@ -69,26 +52,22 @@ var MESSAGES = {
   right: "right is required and must be a string",
   threshold: "threshold must be a number between 0 and 255",
 };
-function isNumber(input) {
-  return typeof input === "number" && !Number.isNaN(input);
-}
-function isPlainObject(input) {
-  if (!input) {
-    return false;
+function invariant(condition, message) {
+  if (condition) {
+    return;
   }
-  const { toString } = Object.prototype;
-  const prototype = Object.getPrototypeOf(input);
-  return (
-    toString.call(input) === "[object Object]" &&
-    (prototype === null || prototype === Object.getPrototypeOf({}))
-  );
-}
-function isString(input, validate = true) {
-  const isValid = typeof input === "string";
-  if (validate) {
-    return isValid && !!input.trim().length;
+  if (true) {
+    if (message === undefined) {
+      throw new Error("invariant requires an error message argument");
+    }
   }
-  return isValid;
+  const error = !message
+    ? new Error(
+        "Minified exception occurred; use the non-minified dev environment for the full error message and additional helpful warnings.",
+      )
+    : new Error(message);
+  error.name = "colorizr";
+  throw error;
 }
 function isHex(input) {
   if (!isString(input)) {
@@ -154,6 +133,20 @@ function isLCH(input) {
     })
   );
 }
+function isNumber(input) {
+  return typeof input === "number" && !Number.isNaN(input);
+}
+function isPlainObject(input) {
+  if (!input) {
+    return false;
+  }
+  const { toString } = Object.prototype;
+  const prototype = Object.getPrototypeOf(input);
+  return (
+    toString.call(input) === "[object Object]" &&
+    (prototype === null || prototype === Object.getPrototypeOf({}))
+  );
+}
 function isRGB(input) {
   if (!isPlainObject(input)) {
     return false;
@@ -168,6 +161,13 @@ function isRGB(input) {
       return COLOR_KEYS.rgb.includes(key) && value >= 0 && value <= 255;
     })
   );
+}
+function isString(input, validate = true) {
+  const isValid = typeof input === "string";
+  if (validate) {
+    return isValid && !!input.trim().length;
+  }
+  return isValid;
 }
 function clamp(value, min = 0, max = 100) {
   return Math.min(Math.max(value, min), max);
@@ -185,7 +185,7 @@ function limit(input, model, key) {
   switch (model) {
     case "hsl": {
       invariant(COLOR_KEYS.hsl.includes(key), "Invalid key");
-      if (["s", "l"].includes(key)) {
+      if (["l", "s"].includes(key)) {
         return clamp(input);
       }
       return clamp(input, 0, 360);
@@ -564,6 +564,16 @@ function makeNonEnumerable(target, key, value) {
 function clone(obj, ...args) {
   return new obj.constructor(obj, ...args);
 }
+function mapObject(obj, fn) {
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => [key, fn(value, key)]),
+  );
+}
+function isEmpty(o) {
+  if (!o) return true;
+  if (Array.isArray(o)) return o.length === 0;
+  return Object.keys(o).length === 0;
+}
 
 // ../../projects/funlib/src/converter.ts
 function timeSpanToMs(timeSpan) {
@@ -642,19 +652,21 @@ var axisPairs = [
   ["A1", "suck"],
 ];
 var axisToNameMap = fromEntries(axisPairs);
-var axisNameToAxisMap = fromEntries(axisPairs.map(([a, b]) => [b, a]));
+var channelNameToAxisMap = fromEntries(axisPairs.map(([a, b]) => [b, a]));
 var axisIds = axisPairs.map((e) => e[0]);
-var axisNames = axisPairs.map((e) => e[1]);
+var channelNames = axisPairs.map((e) => e[1]);
 var axisLikes = axisPairs.flat();
-function axisLikeToAxis(axisLike) {
-  if (!axisLike) return "L0";
-  if (axisIds.includes(axisLike)) return axisLike;
-  if (axisNames.includes(axisLike)) return axisNameToAxisMap[axisLike];
-  if (axisLike === "singleaxis") return "L0";
-  throw new Error(`axisLikeToAxis: ${axisLike} is not supported`);
+function channelNameToAxis(name, fallback) {
+  if (name && name in channelNameToAxisMap) return channelNameToAxisMap[name];
+  if (fallback !== undefined) return fallback;
+  throw new Error(`axisNameToAxis: ${name} is not supported`);
 }
-function orderByAxis(a, b) {
-  return compareWithOrder(a.id, b.id, axisIds);
+function axisToChannelName(axis) {
+  if (axis && axis in axisToNameMap) return axisToNameMap[axis];
+  throw new Error(`axisToName: ${axis} is not supported`);
+}
+function orderByChannel(a, b) {
+  return compareWithOrder(a.channel, b.channel, channelNames);
 }
 function formatJson(
   json,
@@ -663,7 +675,8 @@ function formatJson(
   function removeNewlines(s) {
     return s.replaceAll(/ *\n\s*/g, " ");
   }
-  const inArrayRegex = /(?<=\[)((?:[^[\]]|\[[^[\]]*\])*)(?=\])/g;
+  const _inArrayRegexNested = /(?<=\[)((?:[^[\]]|\[[^[\]]*\])*)(?=\])/g;
+  const inArrayRegex = /(?<=\[)([^[\]]*)(?=\])/g;
   json = json.replaceAll(
     /\{\s*"(at|time|startTime)":[^{}]+\}/g,
     removeNewlines,
@@ -853,11 +866,13 @@ class FunMetadata {
     creator: "",
     description: "",
     duration: undefined,
+    durationTime: undefined,
     chapters: [],
     bookmarks: [],
     license: "",
     notes: "",
     performers: [],
+    topic_url: "",
     script_url: "",
     tags: [],
     type: "basic",
@@ -866,6 +881,7 @@ class FunMetadata {
   toJSON() {
     return orderTrimJson(this, {
       duration: +this.duration.toFixed(3),
+      durationTime: msToTimeSpan(this.duration * 1000),
     });
   }
   clone() {
@@ -875,7 +891,7 @@ class FunMetadata {
 }
 
 class FunscriptFile {
-  axisName = "";
+  channel = "";
   title = "";
   dir = "";
   mergedFiles;
@@ -883,20 +899,17 @@ class FunscriptFile {
     if (filePath instanceof FunscriptFile) filePath = filePath.filePath;
     let parts = filePath.split(".");
     if (parts.at(-1) === "funscript") parts.pop();
-    const axisLike = parts.at(-1);
-    if (axisLikes.includes(axisLike)) {
-      this.axisName = parts.pop();
+    const channel = parts.at(-1);
+    if (axisLikes.includes(channel)) {
+      this.channel = parts.pop();
     }
     filePath = parts.join(".");
     parts = filePath.split(/[\\/]/);
     this.title = parts.pop();
     this.dir = filePath.slice(0, -this.title.length);
   }
-  get id() {
-    return !this.axisName ? undefined : axisLikeToAxis(this.axisName);
-  }
   get filePath() {
-    return `${this.dir}${this.title}${this.axisName ? `.${this.axisName}` : ""}.funscript`;
+    return `${this.dir}${this.title}${this.channel ? `.${this.channel}` : ""}.funscript`;
   }
   clone() {
     return clone(this, this.filePath);
@@ -911,62 +924,59 @@ class Funscript {
   static File = FunscriptFile;
   static AxisScript = null;
   static mergeMultiAxis(scripts, options) {
-    const multiaxisScripts = scripts.filter((e) => e.axes.length);
-    const singleaxisScripts = scripts.filter((e) => !e.axes.length);
+    const allowMissingActions = options?.allowMissingActions ?? false;
+    const combineSingleSecondaryChannel =
+      options?.combineSingleSecondaryChannel ?? false;
+    const multiaxisScripts = scripts.filter((e) => e.listChannels.length);
+    const singleaxisScripts = scripts.filter((e) => !e.listChannels.length);
     const groups = Object.groupBy(singleaxisScripts, (e) =>
       e.file ? e.file.dir + e.file.title : "[unnamed]",
     );
     const mergedSingleaxisScripts = Object.entries(groups).flatMap(
-      ([_title, scripts2]) => {
+      ([title, scripts2]) => {
         if (!scripts2) return [];
-        const allScripts = scripts2
-          .flatMap((e) => [e, ...e.axes])
-          .sort(orderByAxis);
-        const axes = [...new Set(allScripts.map((e) => e.id))];
-        if (axes.length === allScripts.length) {
-          const L0 = allScripts.find((e) => e.id === "L0");
-          if (L0) {
-            const result = new this(L0, {
-              axes: allScripts.filter((e) => e !== L0),
-            });
-            if (L0.file) {
-              result.file = L0.file.clone();
-              result.file.mergedFiles = allScripts.map((e) => e.file);
-            }
-            return result;
-          }
-          if (options?.allowMissingL0) {
-            const result = new this(
-              { metadata: allScripts[0].metadata.clone(), actions: [] },
-              {
-                axes: allScripts,
-              },
-            );
-            if (allScripts[0].file) {
-              result.file = allScripts[0].file.clone();
-              result.file.axisName = "";
-              result.file.mergedFiles = allScripts.map((e) => e.file);
-            }
-            return result;
-          }
+        const allScripts = scripts2.sort(orderByChannel);
+        const usedChannels = [...new Set(allScripts.map((e) => e.channel))];
+        if (usedChannels.length !== allScripts.length) {
           throw new Error(
-            "Funscript.mergeMultiAxis: trying to merge multi-axis scripts without L0",
+            `Funscript.mergeMultiAxis: some of the ${JSON.stringify(title)} channels ${JSON.stringify(allScripts.map((e) => e.channel))} are duplicate`,
           );
         }
-        console.log(
-          allScripts.map((e) => e.file?.filePath),
-          axes,
-        );
-        throw new Error(
-          "Funscript.mergeMultiAxis: multi-axis scripts are not implemented yet",
-        );
+        if (allScripts.length === 1) {
+          if (!allScripts[0].channel) return allScripts;
+          if (!combineSingleSecondaryChannel) return allScripts;
+          return [
+            new Funscript(
+              {
+                ...allScripts[0],
+                actions: [],
+                channels: { [allScripts[0].channel]: allScripts[0] },
+                channel: undefined,
+              },
+              { isMerging: true },
+            ),
+          ];
+        }
+        const mainScript = allScripts.find((e) => !e.channel);
+        const secondaryScripts = allScripts.filter((e) => e.channel);
+        if (!mainScript && !allowMissingActions) {
+          throw new Error(
+            "Funscript.mergeMultiAxis: cannot merge scripts with no base script",
+          );
+        }
+        return [
+          new Funscript(mainScript, {
+            channels: secondaryScripts,
+            isMerging: true,
+          }),
+        ];
       },
     );
     return [...multiaxisScripts, ...mergedSingleaxisScripts];
   }
-  id = "L0";
+  channel;
   actions = [];
-  axes = [];
+  channels = {};
   metadata;
   parent;
   file;
@@ -977,11 +987,7 @@ class Funscript {
     if (extras?.file) this.file = new base.File(extras.file);
     else if (funscript instanceof Funscript)
       this.file = funscript.file?.clone();
-    this.id =
-      extras?.id ??
-      funscript?.id ??
-      this.file?.id ??
-      (this instanceof AxisScript ? null : "L0");
+    this.channel = extras?.channel ?? funscript?.channel ?? this.file?.channel;
     if (funscript?.actions) {
       this.actions = funscript.actions.map((e) => new base.Action(e));
     }
@@ -989,16 +995,34 @@ class Funscript {
       this.metadata = new base.Metadata(funscript.metadata, this);
     else if (funscript instanceof Funscript)
       this.file = funscript.file?.clone();
-    if (extras?.axes) {
-      if (funscript?.axes?.length)
-        throw new Error("FunFunscript: both axes and axes are defined");
-      this.axes = extras.axes
-        .map((e) => new base.AxisScript(e, { parent: this }))
-        .sort(orderByAxis);
-    } else if (funscript?.axes) {
-      this.axes = funscript.axes
-        .map((e) => new base.AxisScript(e, { parent: this }))
-        .sort(orderByAxis);
+    if (extras?.channels && !isEmpty(funscript?.channels ?? funscript?.axes)) {
+      throw new Error(
+        "FunFunscript: channels are defined on both script and extras",
+      );
+    }
+    const channelsOrAxes =
+      extras?.channels ?? funscript?.channels ?? funscript?.axes;
+    const channels = Array.isArray(channelsOrAxes)
+      ? Object.fromEntries(
+          channelsOrAxes.map((e) => [
+            "channel" in e ? e.channel : axisToChannelName(e.id),
+            e,
+          ]),
+        )
+      : channelsOrAxes;
+    this.channels = mapObject(channels ?? {}, (e) => {
+      return new base.AxisScript(e, { parent: this });
+    });
+    if (extras?.isMerging) {
+      const baseFile =
+        this.file ??
+        this.listChannels.map((e) => e.file).find((e) => e !== undefined);
+      const newFile = new base.File(baseFile ?? "[unnamed]");
+      newFile.mergedFiles = [
+        this.file,
+        ...this.listChannels.map((e) => e.file),
+      ].filter((e) => e !== undefined);
+      if (newFile.mergedFiles.length) this.file = newFile;
     }
     if (extras?.parent) this.parent = extras.parent;
     makeNonEnumerable(this, "parent");
@@ -1009,7 +1033,7 @@ class Funscript {
     return (
       Math.max(
         this.actions.at(-1)?.at ?? 0,
-        ...this.axes.map((e) => e.actions.at(-1)?.at ?? 0),
+        ...this.listChannels.map((e) => e.actions.at(-1)?.at ?? 0),
       ) / 1000
     );
   }
@@ -1017,7 +1041,7 @@ class Funscript {
     return (
       Math.max(
         this.actions.at(-1)?.at ?? 0,
-        ...this.axes.map((e) => e.actions.at(-1)?.at ?? 0),
+        ...this.listChannels.map((e) => e.actions.at(-1)?.at ?? 0),
       ) / 1000
     );
   }
@@ -1029,8 +1053,11 @@ class Funscript {
     if (actionsDuraction * 3 < metadataDuration) return actionsDuraction;
     return metadataDuration;
   }
+  get listChannels() {
+    return Object.values(this.channels);
+  }
   normalize() {
-    this.axes.forEach((e) => e.normalize());
+    this.listChannels.forEach((e) => e.normalize());
     this.actions.forEach((e) => {
       e.at = Math.round(e.at) || 0;
       e.pos = clamp2(Math.round(e.pos) || 0, 0, 100);
@@ -1051,37 +1078,47 @@ class Funscript {
     }
     const duration = Math.ceil(this.actualDuration);
     this.metadata.duration = duration;
-    this.axes.forEach((e) => (e.metadata.duration = duration));
+    this.listChannels.forEach((e) => (e.metadata.duration = duration));
     return this;
-  }
-  getAxes(ids) {
-    const allAxes = [this, ...this.axes].sort(orderByAxis);
-    if (!ids) return allAxes;
-    return allAxes.filter((axis) => ids.includes(axis.id));
   }
   static jsonShape = {
     id: undefined,
+    channel: undefined,
     metadata: {},
     actions: undefined,
-    axes: [],
+    axes: undefined,
+    channels: {},
     inverted: false,
     range: 100,
     version: "1.0",
   };
-  toJSON() {
+  toJSON(options) {
+    const v = options?.version ?? (this.channels ? "2.0" : "1.0");
+    const ops = { ...options, root: false };
     return orderTrimJson(this, {
-      axes: this.axes
-        .slice()
-        .sort(orderByAxis)
-        .map((e) => ({ ...e.toJSON(), metadata: undefined })),
+      id:
+        v === "1.1" && this.parent
+          ? channelNameToAxis(this.channel, this.channel)
+          : undefined,
+      axes:
+        v === "1.1"
+          ? Object.values(this.channels).map((axis) => axis.toJSON(ops))
+          : undefined,
+      channel: undefined,
+      channels:
+        v === "2.0"
+          ? mapObject(this.channels, (e) => e.toJSON(ops))
+          : undefined,
       metadata: {
         ...this.metadata.toJSON(),
         duration: +this.duration.toFixed(3),
+        durationTime: msToTimeSpan(this.duration * 1000),
       },
     });
   }
   toJsonText(options) {
-    return formatJson(JSON.stringify(this, null, 2), options ?? {});
+    const json = this.toJSON(options);
+    return formatJson(JSON.stringify(json, null, 2), options ?? {});
   }
   clone() {
     const cloned = clone(this);
@@ -1093,12 +1130,32 @@ class Funscript {
 class AxisScript extends Funscript {
   constructor(funscript, extras) {
     super(funscript, extras);
-    if (!this.id) throw new Error("AxisScript: axis is not defined");
+    if (!this.channel) throw new Error("AxisScript: axis is not defined");
     if (!this.parent) throw new Error("AxisScript: parent is not defined");
   }
   clone() {
-    const index = this.parent.axes.indexOf(this);
-    return this.parent.clone().axes[index];
+    return this.parent.clone().channels[this.channel];
+  }
+  toJSON(options) {
+    const json = super.toJSON(options);
+    if (options?.root === false) {
+      const parentMetadata = JSON.stringify(this.parent.metadata);
+      if (
+        Object.keys(json.metadata).every(
+          (e) =>
+            ["duration", "durationTime"].includes(e) ||
+            JSON.stringify(json.metadata[e]) ===
+              JSON.stringify(parentMetadata[e]),
+        )
+      ) {
+        delete json.metadata;
+      }
+      delete json.channel;
+      delete json.axes;
+      delete json.channels;
+      delete json.version;
+    }
+    return json;
   }
 }
 Funscript.AxisScript = AxisScript;
@@ -1223,25 +1280,27 @@ function toStats(actions, options) {
 var SPACING_BETWEEN_AXES = 0;
 var SPACING_BETWEEN_FUNSCRIPTS = 4;
 var SVG_PADDING = 0;
+var HANDY_ICON = "☞";
 var svgDefaultOptions = {
   title: null,
+  icon: null,
   lineWidth: 0.5,
   font: "Arial, sans-serif",
-  axisFont: "Consolas, monospace",
+  iconFont: "Consolas, monospace",
   halo: true,
-  solidHeaderBackground: false,
+  solidTitleBackground: false,
   graphOpacity: 0.2,
-  headerOpacity: 0.7,
+  titleOpacity: 0.7,
   mergeLimit: 500,
   normalize: true,
   titleEllipsis: true,
   titleSeparateLine: "auto",
   width: 690,
   height: 52,
-  headerHeight: 20,
-  headerSpacing: 0,
-  axisWidth: 46,
-  axisSpacing: 0,
+  titleHeight: 20,
+  titleSpacing: 0,
+  iconWidth: 46,
+  iconSpacing: 0,
   durationMs: 0,
 };
 var isBrowser = typeof document !== "undefined";
@@ -1382,12 +1441,12 @@ function toSvgElement(scripts, ops) {
         { ...fullOps, durationMs, title: fullOps.title },
         {
           transform: `translate(${SVG_PADDING}, ${y})`,
-          onDoubleTitle: () => (y += fullOps.headerHeight),
+          onDoubleTitle: () => (y += fullOps.titleHeight),
         },
       ),
     );
     y += fullOps.height + SPACING_BETWEEN_AXES;
-    for (const a of s.axes) {
+    for (const a of s.listChannels) {
       pieces.push(
         toSvgG(
           a,
@@ -1395,7 +1454,7 @@ function toSvgElement(scripts, ops) {
           {
             transform: `translate(${SVG_PADDING}, ${y})`,
             isSecondaryAxis: true,
-            onDoubleTitle: () => (y += fullOps.headerHeight),
+            onDoubleTitle: () => (y += fullOps.titleHeight),
           },
         ),
       );
@@ -1406,81 +1465,96 @@ function toSvgElement(scripts, ops) {
   y -= SPACING_BETWEEN_FUNSCRIPTS;
   y += SVG_PADDING;
   return `<svg class="funsvg" width="${round2(fullOps.width)}" height="${round2(y)}" xmlns="http://www.w3.org/2000/svg"
-    font-size="${round2(fullOps.headerHeight * 0.8)}px" font-family="${fullOps.font}"
-  >
-    ${pieces.join(`
+    font-size="${round2(fullOps.titleHeight * 0.8)}px" font-family="${fullOps.font}"
+>
+${pieces.join(`
 `)}
-  </svg>`;
+</svg>`;
 }
 function toSvgG(script, ops, ctx) {
   const {
-    title: rawTitle,
+    title,
+    icon,
     lineWidth: w,
     graphOpacity,
-    headerOpacity,
-    headerHeight,
-    headerSpacing,
+    titleOpacity,
+    titleHeight,
+    titleSpacing,
     height,
-    axisFont,
+    iconFont,
     width,
-    solidHeaderBackground,
+    solidTitleBackground,
     titleEllipsis,
     titleSeparateLine,
     font,
     durationMs,
+    iconWidth,
   } = ops;
-  const { isSecondaryAxis } = ctx;
-  const axisWidth = ops.axisWidth;
-  const axisSpacing = axisWidth === 0 ? 0 : ops.axisSpacing;
-  let title = "";
-  if (rawTitle !== null) {
-    title = typeof rawTitle === "function" ? rawTitle(script) : rawTitle;
-  } else {
-    if (script.file?.filePath) {
-      title = script.file.filePath;
-    } else if (script.parent?.file) {
-      title = "";
-    }
+  const { isSecondaryAxis, isForHandy } = ctx;
+  const iconSpacing = iconWidth === 0 ? 0 : ops.iconSpacing;
+  let titleText = "";
+  if (script.file?.filePath) {
+    titleText = script.file.filePath;
+  } else if (script.parent?.file) {
+    titleText = "";
+  }
+  if (typeof title === "function") {
+    titleText = title(script, titleText);
+  } else if (typeof title === "string") {
+    titleText = title;
+  }
+  let iconText =
+    isForHandy && !isSecondaryAxis
+      ? HANDY_ICON
+      : script.channel
+        ? channelNameToAxis(script.channel, script.channel)
+        : "L0";
+  if (typeof icon === "function") {
+    iconText = icon(script, iconText);
+  } else if (typeof icon === "string") {
+    iconText = icon;
   }
   const stats = toStats(script.actions, { durationSeconds: durationMs / 1000 });
   if (isSecondaryAxis) delete stats.Duration;
   const statCount = Object.keys(stats).length;
   const round2 = (x) => +x.toFixed(2);
-  const proportionalFontSize = round2(headerHeight * 0.8);
-  const statLabelFontSize = round2(headerHeight * 0.4);
-  const statValueFontSize = round2(headerHeight * 0.72);
+  const proportionalFontSize = round2(titleHeight * 0.8);
+  const statLabelFontSize = round2(titleHeight * 0.4);
+  const statValueFontSize = round2(titleHeight * 0.72);
   let useSeparateLine = false;
   const xx = {
-    axisStart: 0,
-    axisEnd: axisWidth,
-    titleStart: axisWidth + axisSpacing,
+    iconStart: 0,
+    iconEnd: iconWidth,
+    titleStart: iconWidth + iconSpacing,
     svgEnd: width,
-    graphWidth: width - axisWidth - axisSpacing,
-    statText: (i) => round2(width - (7 + i * 46) * (headerHeight / 20)),
-    get axisText() {
-      return round2(this.axisEnd / 2);
+    graphWidth: width - iconWidth - iconSpacing,
+    statText: (i) => round2(width - (7 + i * 46) * (titleHeight / 20)),
+    get iconText() {
+      return round2(this.iconEnd / 2);
     },
-    get headerText() {
-      return round2(this.titleStart + headerHeight * 0.2);
+    get titleText() {
+      return round2(this.titleStart + titleHeight * 0.2);
     },
     get textWidth() {
-      return this.statText(useSeparateLine ? 0 : statCount) - this.headerText;
+      return this.statText(useSeparateLine ? 0 : statCount) - this.titleText;
     },
   };
   if (
-    title &&
+    titleText &&
     titleSeparateLine !== false &&
-    textToSvgLength(title, `${proportionalFontSize}px ${font}`) > xx.textWidth
+    textToSvgLength(titleText, `${proportionalFontSize}px ${font}`) >
+      xx.textWidth
   ) {
     useSeparateLine = true;
   }
   if (
-    title &&
+    titleText &&
     titleEllipsis &&
-    textToSvgLength(title, `${proportionalFontSize}px ${font}`) > xx.textWidth
+    textToSvgLength(titleText, `${proportionalFontSize}px ${font}`) >
+      xx.textWidth
   ) {
-    title = truncateTextWithEllipsis(
-      title,
+    titleText = truncateTextWithEllipsis(
+      titleText,
       xx.textWidth,
       `${proportionalFontSize}px ${font}`,
     );
@@ -1488,70 +1562,66 @@ function toSvgG(script, ops, ctx) {
   if (useSeparateLine) {
     ctx.onDoubleTitle();
   }
-  const graphHeight = height - headerHeight - headerSpacing;
-  const isForHandy = "_isForHandy" in script && script._isForHandy;
-  let axis = script.id ?? "L0";
-  if (isForHandy) axis = "☞";
+  const graphHeight = height - titleHeight - titleSpacing;
   const badActions = script.actions.filter((e) => !Number.isFinite(e.pos));
   if (badActions.length) {
     console.log("badActions", badActions);
     badActions.map((e) => (e.pos = 120));
-    title += "::bad";
-    axis = "!!!";
+    titleText += "::bad";
+    iconText = "!!!";
   }
   const yy = {
     top: 0,
-    get headerExtra() {
-      return useSeparateLine ? headerHeight : 0;
+    get titleExtra() {
+      return useSeparateLine ? titleHeight : 0;
     },
     get titleBottom() {
-      return round2(headerHeight + this.headerExtra);
+      return round2(titleHeight + this.titleExtra);
     },
     get graphTop() {
-      return round2(this.titleBottom + headerSpacing);
+      return round2(this.titleBottom + titleSpacing);
     },
     get svgBottom() {
-      return round2(height + this.headerExtra);
+      return round2(height + this.titleExtra);
     },
-    get axisText() {
-      return round2((this.top + this.svgBottom) / 2 + 4 + this.headerExtra / 2);
+    get iconText() {
+      return round2((this.top + this.svgBottom) / 2 + 4 + this.titleExtra / 2);
     },
-    headerText: round2(headerHeight * 0.75),
+    titleText: round2(titleHeight * 0.75),
     get statLabelText() {
-      return round2(headerHeight * 0.35 + this.headerExtra);
+      return round2(titleHeight * 0.35 + this.titleExtra);
     },
     get statValueText() {
-      return round2(headerHeight * 0.92 + this.headerExtra);
+      return round2(titleHeight * 0.92 + this.titleExtra);
     },
   };
-  const bgGradientId = `funsvg-grad-${script.id}-${script.actions.length}-${script.actions[0]?.at || 0}`;
-  const axisColor = speedToHexCached(stats.AvgSpeed);
-  const axisOpacity = round2(
-    headerOpacity * Math.max(0.5, Math.min(1, stats.AvgSpeed / 100)),
+  const bgGradientId = `funsvg-grad-${script.channel ?? ""}-${script.actions.length}-${script.actions[0]?.at || 0}`;
+  const iconColor = speedToHexCached(stats.AvgSpeed);
+  const iconOpacity = round2(
+    titleOpacity * Math.max(0.5, Math.min(1, stats.AvgSpeed / 100)),
   );
   return [
     `<g transform="${ctx.transform}">`,
     '  <g class="funsvg-bgs">',
     `    <defs>${toSvgBackgroundGradient(script, { durationMs }, bgGradientId)}</defs>`,
-    axisWidth > 0 &&
-      `    <rect class="funsvg-bg-axis-drop" x="0" y="${yy.top}" width="${xx.axisEnd}" height="${yy.svgBottom - yy.top}" fill="#ccc" opacity="${round2(graphOpacity * 1.5)}"></rect>`,
+    iconWidth > 0 &&
+      `    <rect class="funsvg-bg-axis-drop" x="0" y="${yy.top}" width="${xx.iconEnd}" height="${yy.svgBottom - yy.top}" fill="#ccc" opacity="${round2(graphOpacity * 1.5)}"></rect>`,
     `    <rect class="funsvg-bg-title-drop" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="#ccc" opacity="${round2(graphOpacity * 1.5)}"></rect>`,
-    axisWidth > 0 &&
-      `    <rect class="funsvg-bg-axis" x="0" y="${yy.top}" width="${xx.axisEnd}" height="${yy.svgBottom - yy.top}" fill="${axisColor}" opacity="${axisOpacity}"></rect>`,
-    `    <rect class="funsvg-bg-title" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="${solidHeaderBackground ? axisColor : `url(#${bgGradientId})`}" opacity="${round2(solidHeaderBackground ? axisOpacity : headerOpacity)}"></rect>`,
+    iconWidth > 0 &&
+      `    <rect class="funsvg-bg-axis" x="0" y="${yy.top}" width="${xx.iconEnd}" height="${yy.svgBottom - yy.top}" fill="${iconColor}" opacity="${iconOpacity}"></rect>`,
+    `    <rect class="funsvg-bg-title" x="${xx.titleStart}" width="${xx.graphWidth}" height="${yy.titleBottom}" fill="${solidTitleBackground ? iconColor : `url(#${bgGradientId})`}" opacity="${round2(solidTitleBackground ? iconOpacity : titleOpacity)}"></rect>`,
     `    <rect class="funsvg-bg-graph" x="${xx.titleStart}" width="${xx.graphWidth}" y="${yy.graphTop}" height="${graphHeight}" fill="url(#${bgGradientId})" opacity="${round2(graphOpacity)}"></rect>`,
     "  </g>",
     `  <g class="funsvg-lines" transform="translate(${xx.titleStart}, ${yy.graphTop})" stroke-width="${w}" fill="none" stroke-linecap="round">`,
-    ...toSvgLines(script, ops, {
-      width: xx.graphWidth,
-      height: graphHeight,
-    }).map((line) => `    ${line}`),
+    toSvgLines(script, ops, { width: xx.graphWidth, height: graphHeight }).map(
+      (line) => `    ${line}`,
+    ),
     "  </g>",
     '  <g class="funsvg-titles">',
     ops.halo && [
       `    <g class="funsvg-titles-halo" stroke="white" opacity="0.5" paint-order="stroke fill markers" stroke-width="3" stroke-dasharray="none" stroke-linejoin="round" fill="transparent">`,
-      `      <text class="funsvg-title-halo" x="${xx.headerText}" y="${yy.headerText}"> ${textToSvgText(title)} </text>`,
-      ...Object.entries(stats)
+      `      <text class="funsvg-title-halo" x="${xx.titleText}" y="${yy.titleText}"> ${textToSvgText(titleText)} </text>`,
+      Object.entries(stats)
         .reverse()
         .map(([k, v], i) => [
           `      <text class="funsvg-stat-label-halo" x="${xx.statText(i)}" y="${yy.statLabelText}" font-weight="bold" font-size="${statLabelFontSize}px" text-anchor="end"> ${k} </text>`,
@@ -1559,10 +1629,10 @@ function toSvgG(script, ops, ctx) {
         ]),
       "    </g>",
     ],
-    axisWidth > 0 &&
-      `    <text class="funsvg-axis" x="${xx.axisText}" y="${yy.axisText}" font-size="${round2(Math.max(12, axisWidth * 0.75))}px" font-family="${axisFont}" text-anchor="middle" dominant-baseline="middle"> ${axis} </text>`,
-    `    <text class="funsvg-title" x="${xx.headerText}" y="${yy.headerText}"> ${textToSvgText(title)} </text>`,
-    ...Object.entries(stats)
+    iconWidth > 0 &&
+      `    <text class="funsvg-axis" x="${xx.iconText}" y="${yy.iconText}" font-size="${round2(Math.max(12, iconWidth * 0.75))}px" font-family="${iconFont}" text-anchor="middle" dominant-baseline="middle"> ${textToSvgText(iconText)} </text>`,
+    `    <text class="funsvg-title" x="${xx.titleText}" y="${yy.titleText}"> ${textToSvgText(titleText)} </text>`,
+    Object.entries(stats)
       .reverse()
       .map(([k, v], i) => [
         `    <text class="funsvg-stat-label" x="${xx.statText(i)}" y="${yy.statLabelText}" font-weight="bold" font-size="${statLabelFontSize}px" text-anchor="end"> ${k} </text>`,
@@ -1598,8 +1668,8 @@ function funscriptOptions(width = 690) {
     ? { width }
     : {
         width,
-        solidHeaderBackground: true,
-        headerOpacity: 0.8,
+        solidTitleBackground: true,
+        titleOpacity: 0.8,
         halo: false,
       };
 }
