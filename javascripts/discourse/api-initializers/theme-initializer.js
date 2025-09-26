@@ -103,10 +103,7 @@ var theme_initializer_default = apiInitializer((api) => {
         let links2 = m.file.mergedFiles.map((f) =>
           resolvedLinks.find((r) => r.file?.filePath === f.filePath),
         );
-        m.metadata.topic_url = links2[0].p
-          .closest(".topic-body")
-          .querySelector("a.post-date")
-          .href.replace(/\?.*/, "");
+        addMetadata(links2, m);
         if (userSettings.multiaxis_extension === ".max.funscript") {
           if (!m.file.filePath.endsWith(".max.funscript")) {
             m.file.channel = "max";
@@ -206,6 +203,24 @@ var theme_initializer_default = apiInitializer((api) => {
     },
   );
 });
+function addMetadata(links, script) {
+  const post = links[0].p.closest("article");
+  const topicUrl = post.querySelector("a.post-date").href.replace(/\?.*/, "");
+  const tags = Array.from(
+    document.querySelectorAll("#topic-title .discourse-tag"),
+  ).map((tag) => tag.dataset.tagName);
+  const creator = post.querySelector(".main-avatar")?.dataset.userCard;
+  const dateStr = post.querySelector(".relative-date")?.dataset.time;
+  const date = dateStr
+    ? new Date(+dateStr).toISOString().split("T")[0]
+    : undefined;
+  Object.assign(script.metadata, {
+    topic_url: topicUrl,
+    topic_tags: tags.filter(Boolean),
+    topic_creator: creator,
+    topic_date: date,
+  });
+}
 async function fetchFunscript(url) {
   let response = await getCached(url, "funscript-cache", fetch);
   if (!response) {
