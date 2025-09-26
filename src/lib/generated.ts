@@ -27,19 +27,19 @@ export const settingsYml = {
     default: "merged-axes",
     choices: [
       {
-        value: "merged-axes",
-        description:
-          "1.1 - Download as SLT funscript, supported by MFP since forever",
-      },
-      {
-        value: "merged-2.0",
+        value: "2.0",
         description:
           "2.0 - Download as 2.0 funscript, supported since MFP v1.33.9 & XTP v0.55b",
       },
       {
-        value: "separate",
+        value: "1.1",
         description:
-          "separate - Download all axis scripts as separate files. Saves you some clicking.",
+          "1.1 - Download as 1.1 funscript, supported by MFP since forever",
+      },
+      {
+        value: "1.0",
+        description:
+          "1.0 (separate) - Download all axis scripts as separate files. Saves you some clicking.",
       },
     ],
   },

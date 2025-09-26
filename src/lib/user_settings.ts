@@ -69,7 +69,9 @@ export function makeSettingsEdits() {
     if (config.type === "bool") {
       input.type = "checkbox";
       input.checked = !!userSettings[key];
-      input.addEventListener("change", () => set(input.checked));
+      input.addEventListener("change", () =>
+        set((input as HTMLInputElement).checked),
+      );
     } else if (config.type === "string") {
       input.type = "text";
       input.value = String(userSettings[key]);
@@ -80,6 +82,8 @@ export function makeSettingsEdits() {
       input.addEventListener("input", () => set(+input.value || 0));
     } else if (config.type === "dropdown") {
       input = document.createElement("select");
+      input.style.width = "500px";
+      input.style.display = "block";
       for (const choice of config.choices ?? []) {
         const option = document.createElement("option");
         option.value = choice.value;
@@ -90,7 +94,11 @@ export function makeSettingsEdits() {
       input.addEventListener("change", () => set(input.value));
     }
 
-    label.append(input, config.description);
+    if (config.type === "dropdown") {
+      label.append(config.description, input);
+    } else {
+      label.append(input, config.description);
+    }
     container.appendChild(label);
   }
   return container;

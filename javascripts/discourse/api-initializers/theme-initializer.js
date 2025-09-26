@@ -8,6 +8,7 @@ import {
 import {
   USER_SETTINGS_UPDATED_EVENT,
   injectSettings,
+  makeSettingsEdits,
   userSettings,
 } from "../lib/user_settings";
 import "../lib/generated";
@@ -135,7 +136,7 @@ var theme_initializer_default = apiInitializer((api) => {
           console.log({ isMergedLink, clickedLink }, e, e.target);
           if (!isMergedLink) return;
           e.stopPropagation();
-          if (userSettings.multiaxis_download_format === "separate") {
+          if (userSettings.multiaxis_download_format === "1.0") {
             e.preventDefault();
             links2.forEach((link, index) => {
               setTimeout(() => {
@@ -180,39 +181,7 @@ var theme_initializer_default = apiInitializer((api) => {
         summary.addEventListener("click", (e) => {
           e.stopPropagation();
         });
-        const helpButton = document.createElement("button");
-        helpButton.textContent = "?";
-        helpButton.style.cssText = `
-          float: right;
-          outline: solid 1px var(--tertiary);
-          padding: 0px;
-          background-color: var(--primary-very-low);
-          margin-bottom: .5rem;
-          border: 0;
-          height: 1.3em;
-          width: 1.3em;
-          border-radius: 50%;
-          margin-right: 0.3em;
-          margin-left: 0.3em;
-          cursor: pointer;
-          color: var(--primary);
-        `;
-        helpButton.title = "Click for merging explanation";
-        helpButton.addEventListener("click", (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          const explanation = `Script Merging Explanation:
-When multi-axis funscript files are detected in a post, they are automatically merged.
-• Clicking the heatmap will download the merged script.
-• Merged script can only be used in MFP.
-• If you use XTP or something else, enable "separate downloads" in your preferences, then clicking will download the individual files.
-
-Would you like to open preferences?
-`;
-          if (confirm(explanation)) {
-            window.open("/my/preferences/account", "_blank");
-          }
-        });
+        const helpButton = createHelpButton();
         const size = createTextSpan(` (0.0 KB)`);
         links2[0].container.replaceWith(container);
         details.append(summary, ...links2.map((l) => l.container));
@@ -222,7 +191,7 @@ Would you like to open preferences?
             compress: true,
             maxPrecision: 0,
             version:
-              userSettings.multiaxis_download_format === "merged-axes"
+              userSettings.multiaxis_download_format === "1.1"
                 ? "1.1"
                 : undefined,
           });
@@ -301,5 +270,66 @@ function createTextSpan(text) {
   span.style.color = "var(--primary)";
   span.textContent = text;
   return span;
+}
+function createHelpButton() {
+  const helpButton = document.createElement("button");
+  helpButton.textContent = "?";
+  helpButton.style.cssText = `
+          float: right;
+          outline: solid 1px var(--tertiary);
+          padding: 0px;
+          background-color: var(--primary-very-low);
+          margin-bottom: .5rem;
+          border: 0;
+          height: 1.3em;
+          width: 1.3em;
+          border-radius: 50%;
+          margin-right: 0.3em;
+          margin-left: 0.3em;
+          cursor: pointer;
+          color: var(--primary);
+        `;
+  helpButton.title = "Click for merging explanation";
+  helpButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const dialog = document.createElement("dialog");
+    dialog.style.cssText = `
+      border-color: var(--tertiary);
+      background-color: var(--secondary);
+      color: var(--primary);
+    `;
+    const explanation = `Script Merging Explanation:
+      • When multi-axis funscript files are detected in a post, they are automatically merged.
+      • Clicking the heatmap will download the merged script.
+      • Merged script can be used in MFP and XTP.
+        • Choose 1.1 if you use old MFP
+        • Choose 2.0 if you use MFP v1.33.9 & XTP v0.55b or newer
+        • Choose 1.0 if you want to download scripts as is as separate files
+        • You can still get them one by one by opening "axes" dropdown
+`;
+    const text = document.createElement("p");
+    text.style.whiteSpace = "pre-wrap";
+    text.textContent = explanation;
+    const hr = document.createElement("hr");
+    hr.style.borderColor = "var(--tertiary)";
+    const settings = makeSettingsEdits();
+    const btnContainer = document.createElement("div");
+    btnContainer.style.display = "flex";
+    btnContainer.style.gap = ".5rem";
+    btnContainer.style.justifyContent = "flex-end";
+    btnContainer.style.marginTop = "1rem";
+    const closeButton = document.createElement("button");
+    closeButton.textContent = "Close";
+    closeButton.addEventListener("click", () => dialog.close());
+    btnContainer.append(closeButton);
+    dialog.append(text, hr, settings, btnContainer);
+    document.body.append(dialog);
+    dialog.showModal();
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+    });
+  });
+  return helpButton;
 }
 export { theme_initializer_default as default };
