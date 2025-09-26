@@ -1096,6 +1096,7 @@ class Funscript {
     const v = options?.version ?? (this.channels ? "2.0" : "1.0");
     const ops = { ...options, root: false };
     return orderTrimJson(this, {
+      version: v,
       id:
         v === "1.1" && this.parent
           ? channelNameToAxis(this.channel, this.channel)

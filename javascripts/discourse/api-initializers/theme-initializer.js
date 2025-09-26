@@ -136,7 +136,7 @@ var theme_initializer_default = apiInitializer((api) => {
           console.log({ isMergedLink, clickedLink }, e, e.target);
           if (!isMergedLink) return;
           e.stopPropagation();
-          if (userSettings.multiaxis_download_format === "1.0") {
+          if (userSettings.multiaxis_download_format === "v1.0") {
             e.preventDefault();
             links2.forEach((link, index) => {
               setTimeout(() => {
@@ -191,7 +191,7 @@ var theme_initializer_default = apiInitializer((api) => {
             compress: true,
             maxPrecision: 0,
             version:
-              userSettings.multiaxis_download_format === "1.1"
+              userSettings.multiaxis_download_format === "v1.1"
                 ? "1.1"
                 : undefined,
           });
@@ -303,10 +303,10 @@ function createHelpButton() {
       • When multi-axis funscript files are detected in a post, they are automatically merged.
       • Clicking the heatmap will download the merged script.
       • Merged script can be used in MFP and XTP.
-        • Choose 1.1 if you use old MFP
-        • Choose 2.0 if you use MFP v1.33.9 & XTP v0.55b or newer
-        • Choose 1.0 if you want to download scripts as is as separate files
-        • You can still get them one by one by opening "axes" dropdown
+          • Choose 1.1 if you use old MFP
+          • Choose 2.0 if you use MFP v1.33.9 & XTP v0.55b or newer
+          • Choose 1.0 if you want to download scripts as is as separate files
+          • You can still get them one by one by opening "axes" dropdown
 `;
     const text = document.createElement("p");
     text.style.whiteSpace = "pre-wrap";

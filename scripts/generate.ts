@@ -20,7 +20,7 @@ declare global {
             bool: boolean;
             string: string;
             number: number;
-            dropdown: typeof settingsYml[K] extends {type: "dropdown"} ? (typeof settingsYml[K]["choices"][number])['value'] : never;
+            enum: typeof settingsYml[K] extends {type: "enum"} ? typeof settingsYml[K]["choices"][number] : never;
         }[typeof settingsYml[K]["type"]]
     }
 }

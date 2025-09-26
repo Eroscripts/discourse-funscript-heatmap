@@ -20,22 +20,24 @@ merge_heatmaps:
 
 multiaxis_download_format:
   description: "How to download multi-axis funscripts"
-  type: dropdown
-  default: "merged-axes"
+  type: enum
+  default: "v1.1"
   choices:
-    - value: "2.0"
-      description: "2.0 - Download as 2.0 funscript, supported since MFP v1.33.9 & XTP v0.55b"
-    - value: "1.1"
-      description: "1.1 - Download as 1.1 funscript, supported by MFP since forever"
-    - value: "1.0"
-      description: "1.0 (separate) - Download all axis scripts as separate files. Saves you some clicking."
+    - "v2.0"
+    - "v1.1"
+    - "v1.0"
+  choiceDescriptions:
+    "v2.0": "2.0 - Download as 2.0 funscript, supported since MFP v1.33.9 & XTP v0.55b"
+    "v1.1": "1.1 - Download as 1.1 funscript, supported by MFP since forever"
+    "v1.0": "1.0 (separate) - Download all axis scripts as separate files. Saves you some clicking."
 
 multiaxis_extension:
   description: "File extension for merged multi-axis funscripts"
-  type: dropdown
+  type: enum
   default: ".funscript"
   choices:
-    - value: ".max.funscript"
-      description: "Use .max.funscript extension (requires video to be renamed to .max.mp4)"
-    - value: ".funscript"
-      description: "Use .funscript extension"
+    - ".max.funscript"
+    - ".funscript"
+  choiceDescriptions:
+    ".max.funscript": "Use .max.funscript extension (requires video to be renamed to .max.mp4)"
+    ".funscript": "Use .funscript extension"

@@ -39,7 +39,7 @@ function makeSettingsEdits() {
     label.style.display = "block";
     label.style.marginBottom = "0.5em";
     let input = document.createElement("input");
-    if (config.type !== "dropdown") {
+    if (config.type !== "enum") {
       input.id = `${THEME_ID}-user-${key}`;
       input.style.marginRight = "0.5em";
     }
@@ -55,20 +55,20 @@ function makeSettingsEdits() {
       input.type = "number";
       input.value = String(userSettings[key]);
       input.addEventListener("input", () => set(+input.value || 0));
-    } else if (config.type === "dropdown") {
+    } else if (config.type === "enum") {
       input = document.createElement("select");
-      input.style.width = "500px";
+      input.style.width = "600px";
       input.style.display = "block";
       for (const choice of config.choices ?? []) {
         const option = document.createElement("option");
-        option.value = choice.value;
-        option.textContent = choice.description;
+        option.value = choice;
+        option.textContent = config.choiceDescriptions?.[choice] ?? choice;
         input.appendChild(option);
       }
       input.value = String(userSettings[key]);
       input.addEventListener("change", () => set(input.value));
     }
-    if (config.type === "dropdown") {
+    if (config.type === "enum") {
       label.append(config.description, input);
     } else {
       label.append(input, config.description);
